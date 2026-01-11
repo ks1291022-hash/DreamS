@@ -66,13 +66,10 @@ const OurFacility: React.FC = () => {
       <div className="bg-gradient-to-r from-emerald-600 to-teal-700 rounded-2xl p-6 md:p-8 text-white shadow-lg relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
         <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-4">
+          <div className="flex items-center gap-3 mb-6">
              <ShieldCheck className="w-8 h-8 text-emerald-200" />
              <h3 className="text-2xl font-bold">Cashless Treatment Available</h3>
           </div>
-          <p className="text-emerald-100 mb-6 max-w-2xl">
-            We are proud to be <strong>NABH Accredited</strong> and empaneled with major government schemes to provide accessible, high-quality healthcare to everyone.
-          </p>
           <div className="flex flex-wrap gap-4">
              <div className="bg-white/20 backdrop-blur-md border border-white/30 px-6 py-3 rounded-xl font-bold text-lg flex items-center gap-2 shadow-sm">
                 <span className="bg-white text-emerald-700 w-6 h-6 rounded-full flex items-center justify-center text-xs">✓</span>
