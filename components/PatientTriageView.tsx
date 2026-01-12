@@ -243,7 +243,7 @@ const PatientTriageView: React.FC<Props> = ({ onSaveRecord, onNavigateToDigitalT
                <strong>Troubleshooting steps:</strong>
                <ul className="list-decimal pl-4 mt-2 space-y-1">
                  <li>Go to Vercel Project Settings -&gt; Environment Variables.</li>
-                 <li>Add a key named <code className="font-mono text-rose-900 bg-rose-200 px-1 py-0.5 rounded">API_KEY</code> with your Gemini key as value.</li>
+                 <li>Add a key named API_KEY with your Gemini key as value.</li>
                  <li><strong>Crucial:</strong> Go to 'Deployments' and click 'Redeploy' on your latest build.</li>
                </ul>
             </div>
