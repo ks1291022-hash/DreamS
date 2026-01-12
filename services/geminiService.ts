@@ -2,23 +2,24 @@
 import { GoogleGenAI, Chat, GenerateContentResponse, Type } from "@google/genai";
 import { AIResponse, TriageResponse, MCQStepResponse, IntakeStepResponse, IntakeData } from "../types";
 
-/**
- * Enhanced schema for clinical triage.
- * We make some fields optional at the schema level to prevent API validation errors 
- * during the initial intake phase where full details aren't yet determined.
- */
+// Enhanced API Key retrieval for local dev and AI Studio environments
+const getApiKey = (): string | undefined => {
+  if (typeof process !== 'undefined' && process.env?.API_KEY && process.env.API_KEY !== 'undefined') {
+    return process.env.API_KEY;
+  }
+  // @ts-ignore
+  if (typeof window !== 'undefined' && window.process?.env?.API_KEY) {
+    // @ts-ignore
+    return window.process.env.API_KEY;
+  }
+  return undefined;
+};
+
 const TRIAGE_RESPONSE_SCHEMA = {
   type: Type.OBJECT,
   properties: {
-    screen: { type: Type.STRING, description: "One of: 'symptom_mcq', 'triage_report'" },
-    symptom_summary: { 
-      type: Type.STRING, 
-      description: "A professional clinical summary of symptoms." 
-    },
-    clarifying_questions_needed: { 
-      type: Type.STRING, 
-      enum: ["YES", "NO"]
-    },
+    symptom_summary: { type: Type.STRING },
+    clarifying_questions_needed: { type: Type.STRING, enum: ["YES", "NO"] },
     questions: {
       type: Type.ARRAY,
       items: {
@@ -31,6 +32,8 @@ const TRIAGE_RESPONSE_SCHEMA = {
             properties: {
               A: { type: Type.STRING },
               B: { type: Type.STRING },
+              C: { type: Type.STRING },
+              D: { type: Type.STRING },
               Z: { type: Type.STRING }
             },
             required: ["A", "B", "Z"]
@@ -56,37 +59,35 @@ const TRIAGE_RESPONSE_SCHEMA = {
     recommended_department: { type: Type.STRING },
     self_care_advice: { type: Type.STRING },
     ayurvedic_suggestions: { type: Type.STRING },
-    internal_chatbot_trigger: { type: Type.STRING, enum: ["YES", "NO"] }
+    internal_chatbot_trigger: { type: Type.STRING, enum: ["YES", "NO"] },
+    estimated_consultation_time: { type: Type.STRING }
   },
-  required: ["symptom_summary", "clarifying_questions_needed", "internal_chatbot_trigger"]
+  required: ["symptom_summary", "clarifying_questions_needed"]
 };
 
 const GET_SYSTEM_INSTRUCTION = (language: string) => `
 You are **Eli**, the Clinical Triage Assistant for **J.C. Juneja Hospital**.
-User language: **${language}**. Respond entirely in **${language}**.
+Response Language: **${language}**.
 
-**CORE RULES:**
-1. If initial intake is insufficient, set "clarifying_questions_needed" to "YES" and provide 3-6 MCQs.
-2. Every MCQ must have a "None of the above" option with key "Z".
-3. Even if you are asking clarifying questions, you MUST return a "symptom_summary" based on what you know so far.
-4. If conditions aren't known yet, return an empty array [] for "probable_conditions".
+**STRICT RULES:**
+1. Return ONLY raw JSON. No markdown code blocks.
+2. If "clarifying_questions_needed" is "YES", provide 3-6 MCQs in "questions".
+3. Every question MUST have option "Z": "None of the above / Other".
+4. If "clarifying_questions_needed" is "NO", provide "probable_conditions" and "recommended_department".
 `;
 
 let chatSession: Chat | null = null;
 
 export const initializeChat = (language: string = 'English'): Chat => {
-  const apiKey = process.env.API_KEY;
+  const apiKey = getApiKey();
   
-  if (!apiKey || apiKey === 'undefined') {
-    const errorMsg = "CRITICAL: Gemini API Key is missing! Check .env.local and ensure GEMINI_API_KEY is set. Restart your dev server.";
-    console.error(errorMsg);
-    // We throw to catch it in the UI and show the user
-    throw new Error(errorMsg);
+  if (!apiKey) {
+    throw new Error("API_KEY_MISSING: The Gemini API key is not defined. Please check your environment variables or .env.local file.");
   }
 
   const ai = new GoogleGenAI({ apiKey });
   chatSession = ai.chats.create({
-    model: 'gemini-3-pro-preview',
+    model: 'gemini-3-flash-preview',
     config: {
       responseMimeType: "application/json",
       responseSchema: TRIAGE_RESPONSE_SCHEMA,
@@ -104,13 +105,19 @@ export const sendMessageToTriage = async (message: string, language: string = 'E
     }
 
     const response: GenerateContentResponse = await chatSession!.sendMessage({ message });
-    const text = response.text || "{}";
+    const text = response.text?.trim() || "{}";
     
-    // Safety check: remove potential markdown backticks if model hallucinates them
-    const cleanJson = text.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
-    return JSON.parse(cleanJson) as AIResponse;
+    // Clean up response if markdown backticks are present
+    const cleanJson = text.replace(/^```json\s*/, '').replace(/\s*```$/, '').trim();
+    
+    try {
+      return JSON.parse(cleanJson) as AIResponse;
+    } catch (e) {
+      console.error("JSON Parse Error. Content:", text);
+      throw new Error("INVALID_JSON_RESPONSE: The clinical engine returned malformed data.");
+    }
   } catch (error: any) {
-    console.error("Gemini API Error:", error);
+    console.error("Triage Service Error:", error);
     throw error;
   }
 };

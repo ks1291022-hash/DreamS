@@ -8,10 +8,9 @@ import MCQQuestionnaire from './MCQQuestionnaire';
 import TriageReport from './TriageReport';
 import SymptomInput from './SymptomInput';
 import DisclaimerModal from './DisclaimerModal';
-import ClarificationRequest from './ClarificationRequest';
 import { sendMessageToTriage, resetSession } from '../services/geminiService';
 import { TriageResponse, AppState, IntakeData, AIResponse, MCQStepResponse, PatientRecord } from '../types';
-import { RefreshCw, ClipboardCheck, UserCog, MessageSquare, Save, Edit, HelpCircle, AlertCircle } from 'lucide-react';
+import { RefreshCw, ClipboardCheck, MessageSquare, AlertCircle } from 'lucide-react';
 
 interface Props {
   onSaveRecord: (intake: IntakeData, triage: TriageResponse) => void;
@@ -21,7 +20,6 @@ interface Props {
 }
 
 const PatientTriageView: React.FC<Props> = ({ onSaveRecord, onNavigateToDigitalTwin, records, onLogin }) => {
-  const [hasAcceptedDisclaimer, setHasAcceptedDisclaimer] = useState(false);
   const [showDisclaimer, setShowDisclaimer] = useState(true);
   const [appState, setAppState] = useState<AppState>(AppState.IDLE);
   const [currentPhone, setCurrentPhone] = useState('');
@@ -38,14 +36,10 @@ const PatientTriageView: React.FC<Props> = ({ onSaveRecord, onNavigateToDigitalT
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    resetSession();
-  }, [appState]);
-
-  useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [appState, mcqData, finalReport]);
+  }, [appState]);
 
   const triggerSave = (intake: IntakeData, report: TriageResponse) => {
     if (!isSaved) {
@@ -56,29 +50,31 @@ const PatientTriageView: React.FC<Props> = ({ onSaveRecord, onNavigateToDigitalT
 
   const processAIResponse = (response: AIResponse) => {
     setIsFollowUpLoading(false);
-    
-    // Fix: Use any-casting or property checks to handle the AIResponse union type correctly
     const res = response as any;
     
-    // Logic to handle MCQ steps
-    if (res.clarifying_questions_needed === 'YES' && res.questions) {
-      setMcqData(res as MCQStepResponse);
+    if (res.clarifying_questions_needed === 'YES' && res.questions?.length > 0) {
+      setMcqData({
+        screen: "symptom_mcq",
+        questions: res.questions,
+        next_action: "Wait for input"
+      });
       setAppState(AppState.MCQ_ENTRY);
       return;
     }
     
-    // Logic to handle final report
     if (res.symptom_summary) {
       const report = res as TriageResponse;
       setFinalReport(report);
       setAppState(AppState.RESULTS);
       
-      if (report.clarifying_questions_needed === 'NO' && intakeData) {
+      if (intakeData) {
         const finalIntake = { ...intakeData, phoneNumber: currentPhone };
         triggerSave(finalIntake, report);
       }
       return;
     }
+
+    throw new Error("The clinical engine returned an incomplete assessment.");
   };
 
   const processIntake = async (data: IntakeData) => {
@@ -86,285 +82,154 @@ const PatientTriageView: React.FC<Props> = ({ onSaveRecord, onNavigateToDigitalT
     setIntakeData(data);
     setAppState(AppState.ANALYZING_INTAKE);
     
-    const prompt = `
-      NEW PATIENT: ${data.fullName} (${data.age}/${data.sex}).
-      SYMPTOMS: ${data.currentSymptoms}.
-      HISTORY: ${data.conditions}.
-    `;
+    const prompt = `Patient: ${data.fullName}, ${data.age}/${data.sex}. Symptoms: ${data.currentSymptoms}. History: ${data.conditions || 'None'}.`;
 
     try {
       const response = await sendMessageToTriage(prompt, selectedLanguage);
       processAIResponse(response);
     } catch (error: any) {
-      setErrorMessage(error?.message || "An unknown clinical analysis error occurred.");
+      console.error("Analysis Error:", error);
+      setErrorMessage(error?.message || "An unexpected clinical error occurred.");
       setAppState(AppState.ERROR);
     }
   };
 
   const handleDisclaimerAccept = () => {
-    setHasAcceptedDisclaimer(true);
     setShowDisclaimer(false);
     setAppState(AppState.PATIENT_ID);
   };
 
   const handlePhoneSubmit = (phone: string) => {
-    const cleanPhone = phone.trim();
-    setCurrentPhone(cleanPhone);
-    onLogin(cleanPhone);
+    setCurrentPhone(phone);
+    onLogin(phone);
     setAppState(AppState.SELECT_LANGUAGE);
   };
 
-  const handleLanguageSelect = (language: string) => {
-    setSelectedLanguage(language);
+  const handleLanguageSelect = (lang: string) => {
+    setSelectedLanguage(lang);
     setAppState(AppState.SELECT_PROFILE);
   };
 
   const handleProfileSelect = (profile: IntakeData | null, relationship?: string) => {
-      if (profile) {
-          setIntakeData({ ...profile, phoneNumber: currentPhone, currentSymptoms: '' });
-          setAppState(AppState.QUICK_INTAKE);
-      } else {
-          setFormInitialRelationship(relationship || '');
-          setIntakeData(null);
-          setAppState(AppState.INTAKE);
-      }
+    if (profile) {
+      setIntakeData(profile);
+    } else if (relationship !== undefined) {
+      setFormInitialRelationship(relationship);
+    }
+    setAppState(AppState.INTAKE);
   };
 
-  const handleIntakeSubmit = async (data: IntakeData) => {
-    const consistentData = { ...data, phoneNumber: currentPhone };
-    processIntake(consistentData);
-  };
-
-  const handleQuickIntakeSubmit = async (symptoms: string) => {
-    if (!intakeData) return;
-    const updatedIntake = { ...intakeData, phoneNumber: currentPhone, currentSymptoms: symptoms };
-    processIntake(updatedIntake);
-  };
-
-  const handleMCQSubmit = async (answers: Record<string, string[]>) => {
-    setErrorMessage(null);
+  const handleMcqSubmit = async (answers: Record<string, string[]>) => {
     setIsFollowUpLoading(true);
     setAppState(AppState.ANALYZING_MCQ);
     
-    let answerString = "FOLLOW-UP ANSWERS:\n";
-    const questionsToMap = finalReport?.questions || mcqData?.questions || [];
-
-    questionsToMap.forEach(q => {
-        const selectedIds = answers[q.id] || [];
-        const selectedTexts = selectedIds.map(id => (q.options as any)[id]).join(", ");
-        answerString += `Q: ${q.question} -> A: ${selectedTexts}\n`;
-    });
+    const answerSummary = Object.entries(answers)
+      .map(([qId, selected]) => {
+        const question = mcqData?.questions.find(q => q.id === qId);
+        const optionTexts = selected.map(optId => question?.options[optId]);
+        return `Q: ${question?.question} A: ${optionTexts.join(', ')}`;
+      })
+      .join('\n');
 
     try {
-      const response = await sendMessageToTriage(answerString, selectedLanguage);
+      const response = await sendMessageToTriage(`Follow-up answers:\n${answerSummary}`, selectedLanguage);
       processAIResponse(response);
     } catch (error: any) {
-      setErrorMessage(error?.message || "An error occurred during follow-up analysis.");
+      setErrorMessage(error?.message || "Analysis failed.");
       setAppState(AppState.ERROR);
     }
   };
 
-  const handleManualSave = () => {
-    if (finalReport && intakeData) {
-        const finalIntake = { ...intakeData, phoneNumber: currentPhone };
-        onSaveRecord(finalIntake, finalReport);
-        setIsSaved(true);
-    }
-  };
-
-  const handleReset = () => {
-    setErrorMessage(null);
+  const handleRestart = () => {
     resetSession();
     setIntakeData(null);
     setMcqData(null);
     setFinalReport(null);
-    setHasAcceptedDisclaimer(false);
-    setShowDisclaimer(true);
-    setCurrentPhone('');
-    setSelectedLanguage('English');
     setIsSaved(false);
-    setAppState(AppState.IDLE);
-    onLogin('');
+    setAppState(AppState.SELECT_PROFILE);
   };
 
-  const existingUserRecords = records.filter(r => r.intake.phoneNumber === currentPhone);
-  const uniqueProfilesMap = new Map<string, IntakeData>();
-  existingUserRecords.forEach(r => {
-      if (!uniqueProfilesMap.has(r.intake.fullName.toLowerCase())) {
-          uniqueProfilesMap.set(r.intake.fullName.toLowerCase(), r.intake);
-      }
-  });
-  const uniqueProfiles = Array.from(uniqueProfilesMap.values());
-
   return (
-    <div className="pb-32 relative">
-        {showDisclaimer && (
-          <DisclaimerModal onAccept={handleDisclaimerAccept} />
-        )}
+    <div className="space-y-6">
+      {showDisclaimer && <DisclaimerModal onAccept={handleDisclaimerAccept} />}
+      
+      {appState === AppState.PATIENT_ID && <PatientIdentification onSubmit={handlePhoneSubmit} />}
+      
+      {appState === AppState.SELECT_LANGUAGE && <LanguageSelection onSelect={handleLanguageSelect} />}
+      
+      {appState === AppState.SELECT_PROFILE && (
+        <ProfileSelection 
+          phoneNumber={currentPhone} 
+          existingProfiles={records.filter(r => r.intake.phoneNumber === currentPhone).map(r => r.intake)}
+          onSelectProfile={handleProfileSelect}
+        />
+      )}
+      
+      {appState === AppState.INTAKE && (
+        <PatientIntakeForm 
+          onSubmit={processIntake} 
+          isLoading={false}
+          initialPhone={currentPhone}
+          initialRelationship={formInitialRelationship}
+          initialData={intakeData}
+          selectedLanguage={selectedLanguage}
+        />
+      )}
 
-        <div className="flex justify-center mb-8">
-           <div className="flex items-center gap-2">
-              <span className={`h-2 w-2 rounded-full ${[AppState.INTAKE, AppState.SELECT_PROFILE, AppState.SELECT_LANGUAGE, AppState.QUICK_INTAKE, AppState.PATIENT_ID].includes(appState) ? 'bg-teal-600 w-8' : 'bg-slate-300'} transition-all duration-300`}/>
-              <span className={`h-2 w-2 rounded-full ${appState === AppState.MCQ_ENTRY ? 'bg-teal-600 w-8' : 'bg-slate-300'} transition-all duration-300`}/>
-              <span className={`h-2 w-2 rounded-full ${appState === AppState.RESULTS ? 'bg-teal-600 w-8' : 'bg-slate-300'} transition-all duration-300`}/>
-           </div>
+      {(appState === AppState.ANALYZING_INTAKE || appState === AppState.ANALYZING_MCQ) && (
+        <div className="flex flex-col items-center justify-center py-20 animate-pulse">
+           <RefreshCw className="w-12 h-12 text-indigo-600 animate-spin mb-4" />
+           <p className="text-slate-600 font-medium">Eli is analyzing your clinical data...</p>
         </div>
+      )}
 
-        {appState === AppState.PATIENT_ID && (
-          <PatientIdentification onSubmit={handlePhoneSubmit} />
-        )}
+      {appState === AppState.MCQ_ENTRY && mcqData && (
+        <MCQQuestionnaire 
+          questions={mcqData.questions} 
+          onSubmit={handleMcqSubmit} 
+          isLoading={isFollowUpLoading} 
+        />
+      )}
 
-        {appState === AppState.SELECT_LANGUAGE && (
-          <LanguageSelection onSelect={handleLanguageSelect} />
-        )}
-
-        {appState === AppState.SELECT_PROFILE && (
-            <ProfileSelection 
-                phoneNumber={currentPhone}
-                existingProfiles={uniqueProfiles}
-                onSelectProfile={handleProfileSelect}
-            />
-        )}
-
-        {appState === AppState.QUICK_INTAKE && intakeData && (
-           <div className="max-w-3xl mx-auto animate-fade-in-up">
-              <div className="bg-teal-700 rounded-2xl p-8 text-white shadow-xl mb-8">
-                 <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-4 mb-4">
-                        <div>
-                        <h2 className="text-2xl font-bold">Welcome, {intakeData.fullName.split(' ')[0]}</h2>
-                        <p className="text-teal-100 italic">Eli is initializing your clinical intake...</p>
-                        </div>
-                    </div>
-                    <button 
-                        onClick={() => setAppState(AppState.INTAKE)}
-                        className="flex items-center gap-2 px-3 py-1.5 bg-teal-600/50 hover:bg-teal-600 rounded-lg text-xs font-medium border border-teal-500 transition-colors"
-                    >
-                        <Edit className="w-3 h-3" />
-                        Edit Profile
-                    </button>
-                 </div>
-              </div>
-
-              <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-8">
-                 <h3 className="text-lg font-bold text-slate-800 mb-4">What medical concerns do you have today?</h3>
-                 <SymptomInput 
-                    onSubmit={handleQuickIntakeSubmit} 
-                    isLoading={false} 
-                    isFollowUp={false} 
-                 />
-              </div>
-           </div>
-        )}
-
-        {appState === AppState.INTAKE && (
-          <PatientIntakeForm 
-            onSubmit={handleIntakeSubmit} 
-            isLoading={false} 
-            initialPhone={currentPhone}
-            initialRelationship={formInitialRelationship}
-            initialData={intakeData}
-            selectedLanguage={selectedLanguage}
-          />
-        )}
-        
-        {appState === AppState.ANALYZING_INTAKE && (
-          <div className="text-center py-20 animate-pulse">
-            <ClipboardCheck className="w-12 h-12 text-teal-600 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-slate-700">Eli is Assessing History...</h3>
-          </div>
-        )}
-
-        {appState === AppState.MCQ_ENTRY && (mcqData || finalReport?.questions) && (
-          <div className="max-w-3xl mx-auto">
-            <h3 className="text-2xl font-bold text-slate-800 mb-6 px-2">Clinical Follow-up Assessment</h3>
-            <MCQQuestionnaire 
-                questions={mcqData?.questions || finalReport?.questions || []} 
-                onSubmit={handleMCQSubmit} 
-                isLoading={false} 
-            />
-          </div>
-        )}
-
-        {appState === AppState.ANALYZING_MCQ && (
-          <div className="text-center py-20 animate-pulse">
-            <div className="flex gap-2 justify-center mb-4">
-                <div className="w-4 h-4 bg-teal-600 rounded-full animate-bounce delay-0"></div>
-                <div className="w-4 h-4 bg-teal-600 rounded-full animate-bounce delay-150"></div>
-                <div className="w-4 h-4 bg-teal-600 rounded-full animate-bounce delay-300"></div>
-             </div>
-            <h3 className="text-xl font-semibold text-slate-700">Finalizing Triage Recommendation...</h3>
-          </div>
-        )}
-
-        {appState === AppState.RESULTS && finalReport && (
-          <div className="space-y-8 relative">
-            {finalReport.clarifying_questions_needed === 'NO' ? (
-              <TriageReport data={finalReport} intakeData={intakeData || undefined} />
-            ) : (
-              <div className="max-w-3xl mx-auto space-y-6">
-                <div className="bg-white rounded-2xl shadow-xl border border-indigo-100 overflow-hidden animate-fade-in-up">
-                  <div className="bg-indigo-600 p-6 text-white flex items-center gap-4">
-                    <div className="bg-white/20 p-2 rounded-lg">
-                      <HelpCircle className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-bold">Comprehensive Assessment</h3>
-                      <p className="text-indigo-100 text-sm">To provide a final hospital recommendation, please answer these critical follow-up questions.</p>
-                    </div>
-                  </div>
-                  
-                  <div className="p-8">
-                    <MCQQuestionnaire 
-                      questions={finalReport.questions} 
-                      onSubmit={handleMCQSubmit} 
-                      isLoading={isFollowUpLoading} 
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="flex justify-center pt-8">
-               <button 
-                 onClick={handleReset}
-                 className="flex items-center gap-2 text-slate-400 hover:text-indigo-600 transition-colors font-medium"
-               >
-                 <RefreshCw className="w-4 h-4" />
-                 Start New Assessment
-               </button>
+      {appState === AppState.RESULTS && finalReport && (
+        <div className="space-y-8 pb-20">
+          <TriageReport data={finalReport} intakeData={intakeData!} />
+          
+          <div className="bg-white p-8 rounded-2xl border border-indigo-100 shadow-xl text-center">
+            <h3 className="text-xl font-bold text-slate-800 mb-2">How can we help you further?</h3>
+            <div className="flex flex-wrap justify-center gap-4 mt-6">
+              <button 
+                onClick={onNavigateToDigitalTwin}
+                className="flex items-center gap-2 bg-indigo-50 text-indigo-700 px-6 py-3 rounded-xl font-bold hover:bg-indigo-100 transition-all border border-indigo-100"
+              >
+                View Digital Twin History
+              </button>
+              <button 
+                onClick={handleRestart}
+                className="flex items-center gap-2 bg-slate-800 text-white px-6 py-3 rounded-xl font-bold hover:bg-slate-900 transition-all"
+              >
+                New Assessment
+              </button>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {appState === AppState.ERROR && (
-           <div className="text-center py-20">
-              <div className="bg-red-50 text-red-600 p-8 rounded-2xl border border-red-100 max-w-md mx-auto shadow-xl">
-                 <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <AlertCircle className="w-6 h-6" />
-                 </div>
-                 <h3 className="font-bold text-lg mb-2">Assessment Failed</h3>
-                 <p className="text-sm text-red-800 mb-4">Eli encountered an error while processing your data.</p>
-                 
-                 {errorMessage && (
-                    <div className="bg-white/50 p-3 rounded-lg border border-red-200 text-left mb-6 overflow-hidden">
-                       <p className="text-[10px] font-bold text-red-400 uppercase tracking-widest mb-1">Error Detail:</p>
-                       <p className="text-xs font-mono break-words">{errorMessage}</p>
-                    </div>
-                 )}
-                 
-                 <button 
-                    onClick={handleReset}
-                    className="w-full bg-red-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-red-200 hover:bg-red-700 transition-all flex items-center justify-center gap-2"
-                 >
-                    <RefreshCw className="w-4 h-4" />
-                    Try Again
-                 </button>
-              </div>
-           </div>
-        )}
-        
-        <div ref={scrollRef} />
+      {appState === AppState.ERROR && (
+        <div className="bg-rose-50 border border-rose-100 p-8 rounded-2xl text-center">
+          <AlertCircle className="w-12 h-12 text-rose-500 mx-auto mb-4" />
+          <h3 className="text-xl font-bold text-rose-800">Assessment Paused</h3>
+          <p className="text-rose-700 mt-2 mb-6">{errorMessage}</p>
+          <button 
+            onClick={() => setAppState(AppState.SELECT_PROFILE)}
+            className="bg-rose-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-rose-700"
+          >
+            Try Again
+          </button>
+        </div>
+      )}
+
+      <div ref={scrollRef} />
     </div>
   );
 };
