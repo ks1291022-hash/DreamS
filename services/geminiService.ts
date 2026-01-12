@@ -76,8 +76,15 @@ let chatSession: Chat | null = null;
  * Uses process.env.API_KEY directly as required by guidelines.
  */
 export const initializeChat = (language: string = 'English'): Chat => {
-  // Always use process.env.API_KEY directly for initialization.
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const apiKey = process.env.API_KEY; // Retrieve API key from environment
+  
+  // Validate the API key before proceeding
+  if (!apiKey || apiKey === 'undefined' || apiKey.length < 5) {
+    throw new Error("API_KEY_MISSING: No Gemini API Key found. If on Vercel, ensure 'API_KEY' environment variable is set and you have REDEPLOYED the app.");
+  }
+
+  // Initialize GoogleGenAI with the validated API key
+  const ai = new GoogleGenAI({ apiKey: apiKey });
   
   // Use gemini-3-pro-preview for complex reasoning tasks like medical triage.
   chatSession = ai.chats.create({

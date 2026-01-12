@@ -1,4 +1,5 @@
 
+
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
@@ -18,6 +19,9 @@ interface ErrorBoundaryState {
  */
 // Fix: Extending React.Component with explicit generic parameters to ensure 'props' and 'state' are correctly inferred by TypeScript.
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  // Fix: Explicitly declare the state property to ensure TypeScript recognizes it.
+  public state: ErrorBoundaryState;
+
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = {
