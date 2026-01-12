@@ -6,11 +6,10 @@ import ProfileSelection from './ProfileSelection';
 import LanguageSelection from './LanguageSelection';
 import MCQQuestionnaire from './MCQQuestionnaire';
 import TriageReport from './TriageReport';
-import SymptomInput from './SymptomInput';
 import DisclaimerModal from './DisclaimerModal';
 import { sendMessageToTriage, resetSession } from '../services/geminiService';
 import { TriageResponse, AppState, IntakeData, AIResponse, MCQStepResponse, PatientRecord } from '../types';
-import { RefreshCw, ClipboardCheck, MessageSquare, AlertCircle } from 'lucide-react';
+import { RefreshCw, AlertCircle, HelpCircle } from 'lucide-react';
 
 interface Props {
   onSaveRecord: (intake: IntakeData, triage: TriageResponse) => void;
@@ -52,7 +51,8 @@ const PatientTriageView: React.FC<Props> = ({ onSaveRecord, onNavigateToDigitalT
     setIsFollowUpLoading(false);
     const res = response as any;
     
-    if (res.clarifying_questions_needed === 'YES' && res.questions?.length > 0) {
+    // Check for MCQs first
+    if (res.clarifying_questions_needed === 'YES' && res.questions && Array.isArray(res.questions) && res.questions.length > 0) {
       setMcqData({
         screen: "symptom_mcq",
         questions: res.questions,
@@ -62,7 +62,8 @@ const PatientTriageView: React.FC<Props> = ({ onSaveRecord, onNavigateToDigitalT
       return;
     }
     
-    if (res.symptom_summary) {
+    // Check for Final Report
+    if (res.symptom_summary && res.recommended_department) {
       const report = res as TriageResponse;
       setFinalReport(report);
       setAppState(AppState.RESULTS);
@@ -74,7 +75,8 @@ const PatientTriageView: React.FC<Props> = ({ onSaveRecord, onNavigateToDigitalT
       return;
     }
 
-    throw new Error("The clinical engine returned an incomplete assessment.");
+    // Fallback error
+    throw new Error("INCOMPLETE_ASSESSMENT: Eli requires more specific symptom details to categorize your case.");
   };
 
   const processIntake = async (data: IntakeData) => {
@@ -82,14 +84,13 @@ const PatientTriageView: React.FC<Props> = ({ onSaveRecord, onNavigateToDigitalT
     setIntakeData(data);
     setAppState(AppState.ANALYZING_INTAKE);
     
-    const prompt = `Patient: ${data.fullName}, ${data.age}/${data.sex}. Symptoms: ${data.currentSymptoms}. History: ${data.conditions || 'None'}.`;
+    const prompt = `Clinical Intake for ${data.fullName}. Symptoms: ${data.currentSymptoms}. Age: ${data.age}. Sex: ${data.sex}. History: ${data.conditions || 'None'}.`;
 
     try {
       const response = await sendMessageToTriage(prompt, selectedLanguage);
       processAIResponse(response);
     } catch (error: any) {
-      console.error("Analysis Error:", error);
-      setErrorMessage(error?.message || "An unexpected clinical error occurred.");
+      setErrorMessage(error?.message || "An unknown clinical analysis error occurred.");
       setAppState(AppState.ERROR);
     }
   };
@@ -123,28 +124,28 @@ const PatientTriageView: React.FC<Props> = ({ onSaveRecord, onNavigateToDigitalT
     setIsFollowUpLoading(true);
     setAppState(AppState.ANALYZING_MCQ);
     
-    const answerSummary = Object.entries(answers)
-      .map(([qId, selected]) => {
-        const question = mcqData?.questions.find(q => q.id === qId);
-        const optionTexts = selected.map(optId => question?.options[optId]);
-        return `Q: ${question?.question} A: ${optionTexts.join(', ')}`;
-      })
-      .join('\n');
+    let summary = "Follow-up responses for context:\n";
+    const currentQuestions = mcqData?.questions || [];
+    
+    Object.entries(answers).forEach(([qId, selectedOptIds]) => {
+      const q = currentQuestions.find(item => item.id === qId);
+      const optTexts = selectedOptIds.map(id => q?.options[id]).filter(Boolean);
+      summary += `Question: ${q?.question} -> Answer: ${optTexts.join(', ')}\n`;
+    });
 
     try {
-      const response = await sendMessageToTriage(`Follow-up answers:\n${answerSummary}`, selectedLanguage);
+      const response = await sendMessageToTriage(summary, selectedLanguage);
       processAIResponse(response);
     } catch (error: any) {
-      setErrorMessage(error?.message || "Analysis failed.");
+      setErrorMessage(error?.message || "Follow-up assessment failed.");
       setAppState(AppState.ERROR);
     }
   };
 
   const handleRestart = () => {
     resetSession();
-    setIntakeData(null);
-    setMcqData(null);
     setFinalReport(null);
+    setMcqData(null);
     setIsSaved(false);
     setAppState(AppState.SELECT_PROFILE);
   };
@@ -177,18 +178,30 @@ const PatientTriageView: React.FC<Props> = ({ onSaveRecord, onNavigateToDigitalT
       )}
 
       {(appState === AppState.ANALYZING_INTAKE || appState === AppState.ANALYZING_MCQ) && (
-        <div className="flex flex-col items-center justify-center py-20 animate-pulse">
-           <RefreshCw className="w-12 h-12 text-indigo-600 animate-spin mb-4" />
-           <p className="text-slate-600 font-medium">Eli is analyzing your clinical data...</p>
+        <div className="flex flex-col items-center justify-center py-24 animate-pulse">
+           <RefreshCw className="w-14 h-14 text-indigo-600 animate-spin mb-6" />
+           <p className="text-slate-600 text-lg font-bold">Eli is analyzing clinical data...</p>
+           <p className="text-slate-400 text-sm mt-2">Checking history and triage protocols</p>
         </div>
       )}
 
       {appState === AppState.MCQ_ENTRY && mcqData && (
-        <MCQQuestionnaire 
-          questions={mcqData.questions} 
-          onSubmit={handleMcqSubmit} 
-          isLoading={isFollowUpLoading} 
-        />
+        <div className="max-w-3xl mx-auto space-y-6">
+          <div className="bg-indigo-600 p-6 rounded-2xl text-white shadow-lg flex items-center gap-4 animate-fade-in">
+             <div className="bg-white/20 p-3 rounded-xl">
+                <HelpCircle className="w-6 h-6" />
+             </div>
+             <div>
+                <h3 className="font-bold text-lg">Additional Details Needed</h3>
+                <p className="text-indigo-100 text-sm">Please answer these follow-up questions to finalize your triage.</p>
+             </div>
+          </div>
+          <MCQQuestionnaire 
+            questions={mcqData.questions} 
+            onSubmit={handleMcqSubmit} 
+            isLoading={isFollowUpLoading} 
+          />
+        </div>
       )}
 
       {appState === AppState.RESULTS && finalReport && (
@@ -196,19 +209,19 @@ const PatientTriageView: React.FC<Props> = ({ onSaveRecord, onNavigateToDigitalT
           <TriageReport data={finalReport} intakeData={intakeData!} />
           
           <div className="bg-white p-8 rounded-2xl border border-indigo-100 shadow-xl text-center">
-            <h3 className="text-xl font-bold text-slate-800 mb-2">How can we help you further?</h3>
+            <h3 className="text-xl font-bold text-slate-800 mb-2">Next Steps</h3>
             <div className="flex flex-wrap justify-center gap-4 mt-6">
               <button 
                 onClick={onNavigateToDigitalTwin}
-                className="flex items-center gap-2 bg-indigo-50 text-indigo-700 px-6 py-3 rounded-xl font-bold hover:bg-indigo-100 transition-all border border-indigo-100"
+                className="bg-indigo-50 text-indigo-700 px-8 py-3 rounded-xl font-bold hover:bg-indigo-100 transition-all"
               >
-                View Digital Twin History
+                View History
               </button>
               <button 
                 onClick={handleRestart}
-                className="flex items-center gap-2 bg-slate-800 text-white px-6 py-3 rounded-xl font-bold hover:bg-slate-900 transition-all"
+                className="bg-slate-800 text-white px-8 py-3 rounded-xl font-bold hover:bg-slate-900 transition-all"
               >
-                New Assessment
+                New Triage
               </button>
             </div>
           </div>
@@ -216,15 +229,31 @@ const PatientTriageView: React.FC<Props> = ({ onSaveRecord, onNavigateToDigitalT
       )}
 
       {appState === AppState.ERROR && (
-        <div className="bg-rose-50 border border-rose-100 p-8 rounded-2xl text-center">
-          <AlertCircle className="w-12 h-12 text-rose-500 mx-auto mb-4" />
-          <h3 className="text-xl font-bold text-rose-800">Assessment Paused</h3>
-          <p className="text-rose-700 mt-2 mb-6">{errorMessage}</p>
+        <div className="max-w-xl mx-auto bg-rose-50 border-2 border-rose-100 p-10 rounded-3xl text-center shadow-xl shadow-rose-100/50">
+          <div className="bg-rose-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
+            <AlertCircle className="w-8 h-8 text-rose-600" />
+          </div>
+          <h3 className="text-2xl font-bold text-rose-800 mb-4">Assessment Paused</h3>
+          <div className="bg-white/80 p-5 rounded-2xl text-rose-900 text-sm font-medium mb-8 border border-rose-200">
+             {errorMessage}
+          </div>
+          
+          {errorMessage?.includes('API_KEY_MISSING') && (
+            <div className="mb-8 text-xs text-rose-700 bg-rose-100/50 p-4 rounded-xl text-left leading-relaxed">
+               <strong>Troubleshooting steps:</strong>
+               <ul className="list-decimal pl-4 mt-2 space-y-1">
+                 <li>Go to Vercel Project Settings -> Environment Variables.</li>
+                 <li>Add a key named <code>API_KEY</code> with your Gemini key as value.</li>
+                 <li><strong>Crucial:</strong> Go to 'Deployments' and click 'Redeploy' on your latest build.</li>
+               </ul>
+            </div>
+          )}
+
           <button 
-            onClick={() => setAppState(AppState.SELECT_PROFILE)}
-            className="bg-rose-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-rose-700"
+            onClick={() => setAppState(AppState.PATIENT_ID)}
+            className="w-full bg-rose-600 text-white py-4 rounded-2xl font-bold hover:bg-rose-700 shadow-lg shadow-rose-300 transition-all text-lg"
           >
-            Try Again
+            Retry Connection
           </button>
         </div>
       )}

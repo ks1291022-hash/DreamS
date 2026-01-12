@@ -16,16 +16,14 @@ interface ErrorBoundaryState {
 /**
  * ErrorBoundary catches errors in the component tree to prevent the whole app from crashing.
  */
-// Fix: Extending 'Component' directly from 'react' to resolve property 'props' and 'state' inference issues in TypeScript.
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // Use a property initializer for state to help with type inference in class components.
-  public state: ErrorBoundaryState = {
-    hasError: false,
-    error: null
-  };
-
+// Fix: Extending React.Component with explicit generic parameters to ensure 'props' and 'state' are correctly inferred by TypeScript.
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
+    this.state = {
+      hasError: false,
+      error: null
+    };
   }
 
   public static getDerivedStateFromError(error: Error): ErrorBoundaryState {
@@ -65,7 +63,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
       );
     }
 
-    // Correctly accessing 'props' from the class instance to render children components.
+    // Correctly accessing 'props' from the class instance inherited from React.Component to render children components.
     return this.props.children || null;
   }
 }

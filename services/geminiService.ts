@@ -2,18 +2,10 @@
 import { GoogleGenAI, Chat, GenerateContentResponse, Type } from "@google/genai";
 import { AIResponse, TriageResponse, MCQStepResponse, IntakeStepResponse, IntakeData } from "../types";
 
-// Enhanced API Key retrieval for local dev and AI Studio environments
-const getApiKey = (): string | undefined => {
-  if (typeof process !== 'undefined' && process.env?.API_KEY && process.env.API_KEY !== 'undefined') {
-    return process.env.API_KEY;
-  }
-  // @ts-ignore
-  if (typeof window !== 'undefined' && window.process?.env?.API_KEY) {
-    // @ts-ignore
-    return window.process.env.API_KEY;
-  }
-  return undefined;
-};
+/**
+ * Gemini-based clinical triage service.
+ * Follows @google/genai Coding Guidelines.
+ */
 
 const TRIAGE_RESPONSE_SCHEMA = {
   type: Type.OBJECT,
@@ -67,27 +59,29 @@ const TRIAGE_RESPONSE_SCHEMA = {
 
 const GET_SYSTEM_INSTRUCTION = (language: string) => `
 You are **Eli**, the Clinical Triage Assistant for **J.C. Juneja Hospital**.
+Your intelligence is aligned with clinical standards for patient assessment.
 Response Language: **${language}**.
 
-**STRICT RULES:**
-1. Return ONLY raw JSON. No markdown code blocks.
-2. If "clarifying_questions_needed" is "YES", provide 3-6 MCQs in "questions".
-3. Every question MUST have option "Z": "None of the above / Other".
-4. If "clarifying_questions_needed" is "NO", provide "probable_conditions" and "recommended_department".
+**STRICT CLINICAL PROTOCOL:**
+1. If the symptoms provided are vague or insufficient for a safe triage, you MUST set "clarifying_questions_needed" to "YES" and provide 3-5 high-quality MCQs.
+2. Every MCQ must have option "Z" as "None of the above / Other".
+3. If red flags are detected (chest pain, stroke signs, severe trauma), list them clearly in "red_flags" and recommend "Emergency" department.
+4. Return ONLY valid JSON. No conversational filler.
 `;
 
 let chatSession: Chat | null = null;
 
+/**
+ * Initializes a Gemini chat session for clinical triage.
+ * Uses process.env.API_KEY directly as required by guidelines.
+ */
 export const initializeChat = (language: string = 'English'): Chat => {
-  const apiKey = getApiKey();
+  // Always use process.env.API_KEY directly for initialization.
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
-  if (!apiKey) {
-    throw new Error("API_KEY_MISSING: The Gemini API key is not defined. Please check your environment variables or .env.local file.");
-  }
-
-  const ai = new GoogleGenAI({ apiKey });
+  // Use gemini-3-pro-preview for complex reasoning tasks like medical triage.
   chatSession = ai.chats.create({
-    model: 'gemini-3-flash-preview',
+    model: 'gemini-3-pro-preview',
     config: {
       responseMimeType: "application/json",
       responseSchema: TRIAGE_RESPONSE_SCHEMA,
@@ -98,26 +92,32 @@ export const initializeChat = (language: string = 'English'): Chat => {
   return chatSession;
 };
 
+/**
+ * Sends patient data to Gemini for triage analysis.
+ */
 export const sendMessageToTriage = async (message: string, language: string = 'English'): Promise<AIResponse> => {
   try {
     if (!chatSession) {
       initializeChat(language);
     }
 
+    // sendMessage call with message parameter as per guidelines.
     const response: GenerateContentResponse = await chatSession!.sendMessage({ message });
-    const text = response.text?.trim() || "{}";
+    // Use the .text property directly (not a method).
+    const text = response.text;
     
-    // Clean up response if markdown backticks are present
-    const cleanJson = text.replace(/^```json\s*/, '').replace(/\s*```$/, '').trim();
-    
+    if (!text) {
+      throw new Error("EMPTY_RESPONSE: The clinical engine returned no data.");
+    }
+
     try {
-      return JSON.parse(cleanJson) as AIResponse;
+      return JSON.parse(text) as AIResponse;
     } catch (e) {
-      console.error("JSON Parse Error. Content:", text);
-      throw new Error("INVALID_JSON_RESPONSE: The clinical engine returned malformed data.");
+      console.error("Malformed JSON:", text);
+      throw new Error("PARSING_ERROR: Received invalid data format from clinical engine.");
     }
   } catch (error: any) {
-    console.error("Triage Service Error:", error);
+    console.error("Gemini Service Error:", error);
     throw error;
   }
 };
