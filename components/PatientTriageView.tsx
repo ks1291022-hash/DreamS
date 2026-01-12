@@ -50,7 +50,6 @@ const PatientTriageView: React.FC<Props> = ({ onSaveRecord, onNavigateToDigitalT
     setIsFollowUpLoading(false);
     const res = response as any;
     
-    // Check for MCQs first
     if (res.clarifying_questions_needed === 'YES' && res.questions && Array.isArray(res.questions) && res.questions.length > 0) {
       setMcqData({
         screen: "symptom_mcq",
@@ -61,7 +60,6 @@ const PatientTriageView: React.FC<Props> = ({ onSaveRecord, onNavigateToDigitalT
       return;
     }
     
-    // Check for Final Report
     if (res.symptom_summary && res.recommended_department) {
       const report = res as TriageResponse;
       setFinalReport(report);
@@ -74,7 +72,6 @@ const PatientTriageView: React.FC<Props> = ({ onSaveRecord, onNavigateToDigitalT
       return;
     }
 
-    // Fallback error
     throw new Error("INCOMPLETE_ASSESSMENT: Eli requires more specific symptom details to categorize your case.");
   };
 
@@ -89,7 +86,7 @@ const PatientTriageView: React.FC<Props> = ({ onSaveRecord, onNavigateToDigitalT
       const response = await sendMessageToTriage(prompt, selectedLanguage);
       processAIResponse(response);
     } catch (error: any) {
-      setErrorMessage(error?.message || "An unknown clinical analysis error occurred.");
+      setErrorMessage(typeof error === 'object' ? JSON.stringify(error) : error?.message || "An unknown clinical analysis error occurred.");
       setAppState(AppState.ERROR);
     }
   };
@@ -129,14 +126,14 @@ const PatientTriageView: React.FC<Props> = ({ onSaveRecord, onNavigateToDigitalT
     Object.entries(answers).forEach(([qId, selectedOptIds]) => {
       const q = currentQuestions.find(item => item.id === qId);
       const optTexts = selectedOptIds.map(id => q?.options[id]).filter(Boolean);
-      summary += `Question: ${q?.question} -> Answer: ${optTexts.join(', ')}\n`;
+      summary += `Question: ${q?.question}: Answer: ${optTexts.join(', ')}\n`;
     });
 
     try {
       const response = await sendMessageToTriage(summary, selectedLanguage);
       processAIResponse(response);
     } catch (error: any) {
-      setErrorMessage(error?.message || "Follow-up assessment failed.");
+      setErrorMessage(typeof error === 'object' ? JSON.stringify(error) : error?.message || "Follow-up assessment failed.");
       setAppState(AppState.ERROR);
     }
   };
@@ -148,6 +145,8 @@ const PatientTriageView: React.FC<Props> = ({ onSaveRecord, onNavigateToDigitalT
     setIsSaved(false);
     setAppState(AppState.SELECT_PROFILE);
   };
+
+  const isLeakedKey = errorMessage?.includes('leaked') || errorMessage?.includes('403');
 
   return (
     <div className="space-y-6">
@@ -233,26 +232,36 @@ const PatientTriageView: React.FC<Props> = ({ onSaveRecord, onNavigateToDigitalT
             <AlertCircle className="w-8 h-8 text-rose-600" />
           </div>
           <h3 className="text-2xl font-bold text-rose-800 mb-4">Assessment Paused</h3>
-          <div className="bg-white/80 p-5 rounded-2xl text-rose-900 text-sm font-medium mb-8 border border-rose-200">
+          <div className="bg-white/80 p-5 rounded-2xl text-rose-900 text-sm font-medium mb-8 border border-rose-200 break-all overflow-hidden">
              {errorMessage}
           </div>
           
-          {errorMessage?.includes('API_KEY_MISSING') && (
+          {isLeakedKey ? (
+            <div className="mb-8 text-sm text-rose-700 bg-rose-100/50 p-6 rounded-xl text-left leading-relaxed border border-rose-200">
+               <strong className="block mb-2 text-rose-900">Critical Action Required: API Key Blocked</strong>
+               <p className="mb-4">Google has disabled your API key because it was exposed publicly.</p>
+               <ol className="list-decimal pl-5 space-y-2">
+                 <li>Go to Google AI Studio and create a NEW key.</li>
+                 <li>Update the API_KEY variable in your Vercel Project Settings.</li>
+                 <li>Redeploy your application on Vercel.</li>
+               </ol>
+            </div>
+          ) : errorMessage?.includes('API_KEY_MISSING') && (
             <div className="mb-8 text-xs text-rose-700 bg-rose-100/50 p-4 rounded-xl text-left leading-relaxed">
-               <strong>Troubleshooting steps:</strong>
-               <ul className="list-decimal pl-4 mt-2 space-y-1">
-                 <li>{"Go to Vercel Project Settings \u2192 Environment Variables."}</li>
-                 <li>{"Add a key named API_KEY with your Gemini key as value."}</li>
-                 <li>{"Crucial: Go to 'Deployments' and click 'Redeploy' on your latest build."}</li>
+               <strong>Setup Required:</strong>
+               <ul className="list-disc pl-4 mt-2 space-y-1">
+                 <li>Go to Vercel Settings and Environment Variables.</li>
+                 <li>Add key API_KEY with your Gemini token.</li>
+                 <li>Redeploy your build to apply changes.</li>
                </ul>
             </div>
           )}
 
           <button 
-            onClick={() => setAppState(AppState.PATIENT_ID)}
+            onClick={() => window.location.reload()}
             className="w-full bg-rose-600 text-white py-4 rounded-2xl font-bold hover:bg-rose-700 shadow-lg shadow-rose-300 transition-all text-lg"
           >
-            Retry Connection
+            Refresh Application
           </button>
         </div>
       )}

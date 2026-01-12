@@ -1,4 +1,4 @@
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+import React, { ErrorInfo, ReactNode } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { AlertTriangle } from 'lucide-react';
@@ -15,23 +15,27 @@ interface ErrorBoundaryState {
 /**
  * ErrorBoundary catches errors in the component tree to prevent the whole app from crashing.
  */
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // Fix: Use class field initialization for state to ensure it's correctly typed and recognized by TypeScript.
-  public state: ErrorBoundaryState = {
-    hasError: false,
-    error: null
-  };
+// Fix: Use React.Component explicitly to ensure state and props types are inherited correctly and recognized by TS
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    // Fix: Property 'state' is now recognized via React.Component inheritance
+    this.state = {
+      hasError: false,
+      error: null
+    };
+  }
 
-  public static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
   }
 
-  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error("Uncaught error:", error, errorInfo);
   }
 
-  public render() {
-    // Fix: Accessing state via 'this' is now safely recognized by the compiler.
+  render() {
+    // Fix: Property 'state' is now recognized via React.Component inheritance
     if (this.state.hasError) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
@@ -59,8 +63,8 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
       );
     }
 
-    // Fix: Accessing props via 'this' is now safely recognized by the compiler.
-    return this.props.children || null;
+    // Fix: Property 'props' is now recognized via React.Component inheritance
+    return this.props.children;
   }
 }
 
@@ -74,6 +78,4 @@ if (rootElement) {
       </ErrorBoundary>
     </React.StrictMode>
   );
-} else {
-  console.error("Fatal Error: Could not find root element to mount the application.");
 }
