@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import PatientIntakeForm from './PatientIntakeForm';
 import PatientIdentification from './PatientIdentification';
@@ -242,9 +241,9 @@ const PatientTriageView: React.FC<Props> = ({ onSaveRecord, onNavigateToDigitalT
             <div className="mb-8 text-xs text-rose-700 bg-rose-100/50 p-4 rounded-xl text-left leading-relaxed">
                <strong>Troubleshooting steps:</strong>
                <ul className="list-decimal pl-4 mt-2 space-y-1">
-                 <li>Go to Vercel Project Settings -&gt; Environment Variables.</li>
-                 <li>Add a key named API_KEY with your Gemini key as value.</li>
-                 <li><strong>Crucial:</strong> Go to 'Deployments' and click 'Redeploy' on your latest build.</li>
+                 <li>{"Go to Vercel Project Settings \u2192 Environment Variables."}</li>
+                 <li>{"Add a key named API_KEY with your Gemini key as value."}</li>
+                 <li>{"Crucial: Go to 'Deployments' and click 'Redeploy' on your latest build."}</li>
                </ul>
             </div>
           )}
