@@ -4,24 +4,23 @@ import { AIResponse, TriageResponse, MCQStepResponse, IntakeStepResponse, Intake
 
 /**
  * Enhanced schema for clinical triage.
- * Covers both final reports and intermediate MCQ steps.
+ * We make some fields optional at the schema level to prevent API validation errors 
+ * during the initial intake phase where full details aren't yet determined.
  */
 const TRIAGE_RESPONSE_SCHEMA = {
   type: Type.OBJECT,
   properties: {
-    screen: { type: Type.STRING, description: "Optional discriminator: 'symptom_mcq' or 'triage_report'" },
+    screen: { type: Type.STRING, description: "One of: 'symptom_mcq', 'triage_report'" },
     symptom_summary: { 
       type: Type.STRING, 
-      description: "A professional clinical summary of the patient's current symptoms and history." 
+      description: "A professional clinical summary of symptoms." 
     },
     clarifying_questions_needed: { 
       type: Type.STRING, 
-      enum: ["YES", "NO"], 
-      description: "Indicates if the model requires more information via MCQs." 
+      enum: ["YES", "NO"]
     },
     questions: {
       type: Type.ARRAY,
-      description: "A set of 3-6 MCQs to gather clinical details in one go.",
       items: {
         type: Type.OBJECT,
         properties: {
@@ -32,16 +31,13 @@ const TRIAGE_RESPONSE_SCHEMA = {
             properties: {
               A: { type: Type.STRING },
               B: { type: Type.STRING },
-              C: { type: Type.STRING },
-              D: { type: Type.STRING },
-              E: { type: Type.STRING },
-              Z: { type: Type.STRING, description: "Must always be 'None of the above' or 'Other'." }
+              Z: { type: Type.STRING }
             },
             required: ["A", "B", "Z"]
           },
           allow_multiple: { type: Type.BOOLEAN }
         },
-        required: ["id", "question", "options", "allow_multiple"]
+        required: ["id", "question", "options"]
       }
     },
     probable_conditions: {
@@ -52,72 +48,43 @@ const TRIAGE_RESPONSE_SCHEMA = {
           name: { type: Type.STRING },
           probability: { type: Type.STRING, enum: ["Low", "Moderate", "High"] },
           reason: { type: Type.STRING }
-        },
-        required: ["name", "probability", "reason"]
+        }
       }
     },
-    red_flags: { 
-      type: Type.ARRAY, 
-      items: { type: Type.STRING },
-      description: "Life-threatening indicators identified."
-    },
+    red_flags: { type: Type.ARRAY, items: { type: Type.STRING } },
     recommended_tests: { type: Type.ARRAY, items: { type: Type.STRING } },
-    recommended_department: { type: Type.STRING, description: "Specific doctor or department for consultation." },
+    recommended_department: { type: Type.STRING },
     self_care_advice: { type: Type.STRING },
     ayurvedic_suggestions: { type: Type.STRING },
-    estimated_consultation_time: { type: Type.STRING },
     internal_chatbot_trigger: { type: Type.STRING, enum: ["YES", "NO"] }
   },
-  required: [
-    "symptom_summary", 
-    "clarifying_questions_needed", 
-    "probable_conditions", 
-    "red_flags", 
-    "recommended_department", 
-    "internal_chatbot_trigger"
-  ]
+  required: ["symptom_summary", "clarifying_questions_needed", "internal_chatbot_trigger"]
 };
 
 const GET_SYSTEM_INSTRUCTION = (language: string) => `
-You are **Eli**, the specialized **Clinical Triage Assistant** for **J.C. Juneja Hospital**.
+You are **Eli**, the Clinical Triage Assistant for **J.C. Juneja Hospital**.
+User language: **${language}**. Respond entirely in **${language}**.
 
------------------------------
-### 🏥 ROLE & OBJECTIVE
------------------------------
-Your goal is to perform safe, evidence-based clinical triage. 
-**STRICT EFFICIENCY RULE**: Do NOT ask questions one by one. If the initial intake is insufficient, you MUST gather ALL missing clinical details in a SINGLE comprehensive set of 3 to 6 Multiple Choice Questions.
-
------------------------------
-### 🌐 LANGUAGE & COMMUNICATION
------------------------------
-User language: **${language}**.
-- Respond entirely in **${language}**.
-- JSON keys must remain in **ENGLISH**.
-- Values must be in **${language}**.
-
------------------------------
-### 🏥 CLINICAL STRATEGY (ONE-SHOT COMPREHENSIVE GATHERING)
------------------------------
-If you need more information to provide a definitive recommendation:
-1. Set "clarifying_questions_needed" to "YES".
-2. In the "questions" array, provide 3 to 6 Multiple Choice Questions.
-3. **MANDATORY MCQ RULE**: Every single question MUST have an option for **"None of the above"** or **"Other"**.
-
------------------------------
-### 🛑 DOCTOR ROSTER
------------------------------
-- Gen Med: Dr. Vivek Srivastava | Surgeon: Dr. Rahul Sharma | Ped: Dr. Shalini Mangla, Dr. Romani Bansal | Obs: Dr. Roushali Kumar | Ortho: Dr. Rajesh Kumar Tayal | Eye: Dr. Sanjeev Sehgal | ENT: Dr. Amit Mangla.
+**CORE RULES:**
+1. If initial intake is insufficient, set "clarifying_questions_needed" to "YES" and provide 3-6 MCQs.
+2. Every MCQ must have a "None of the above" option with key "Z".
+3. Even if you are asking clarifying questions, you MUST return a "symptom_summary" based on what you know so far.
+4. If conditions aren't known yet, return an empty array [] for "probable_conditions".
 `;
 
 let chatSession: Chat | null = null;
 
 export const initializeChat = (language: string = 'English'): Chat => {
   const apiKey = process.env.API_KEY;
-  if (!apiKey) {
-    console.warn("Gemini API Key is missing. Please check your .env.local and vite.config.ts bridge.");
+  
+  if (!apiKey || apiKey === 'undefined') {
+    const errorMsg = "CRITICAL: Gemini API Key is missing! Check .env.local and ensure GEMINI_API_KEY is set. Restart your dev server.";
+    console.error(errorMsg);
+    // We throw to catch it in the UI and show the user
+    throw new Error(errorMsg);
   }
 
-  const ai = new GoogleGenAI({ apiKey: apiKey || '' });
+  const ai = new GoogleGenAI({ apiKey });
   chatSession = ai.chats.create({
     model: 'gemini-3-pro-preview',
     config: {
@@ -131,45 +98,23 @@ export const initializeChat = (language: string = 'English'): Chat => {
 };
 
 export const sendMessageToTriage = async (message: string, language: string = 'English'): Promise<AIResponse> => {
-  if (!chatSession) {
-    initializeChat(language);
-  }
-
   try {
-    const response: GenerateContentResponse = await chatSession!.sendMessage({ message });
-    const text = response.text || "";
-    // With responseSchema, the text is guaranteed to be raw JSON.
-    return JSON.parse(text) as AIResponse;
-  } catch (error) {
-    console.error("Eli Clinical Triage Error:", error);
-    // Log the raw error for debugging in the console
-    if (error instanceof Error) {
-        console.error("Error Message:", error.message);
+    if (!chatSession) {
+      initializeChat(language);
     }
+
+    const response: GenerateContentResponse = await chatSession!.sendMessage({ message });
+    const text = response.text || "{}";
+    
+    // Safety check: remove potential markdown backticks if model hallucinates them
+    const cleanJson = text.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
+    return JSON.parse(cleanJson) as AIResponse;
+  } catch (error: any) {
+    console.error("Gemini API Error:", error);
     throw error;
   }
 };
 
 export const resetSession = () => {
   chatSession = null;
-};
-
-export const parsePatientVoiceInput = async (transcript: string): Promise<Partial<IntakeData>> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
-  const prompt = `Extract patient medical details from this voice transcript: "${transcript}". Format as JSON.`;
-
-  try {
-    const response: GenerateContentResponse = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        temperature: 0.1
-      }
-    });
-    return JSON.parse(response.text || "{}") as Partial<IntakeData>;
-  } catch (error) {
-    console.error("Voice Parse Error:", error);
-    return {};
-  }
 };
