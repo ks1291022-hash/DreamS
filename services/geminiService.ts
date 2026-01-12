@@ -1,6 +1,80 @@
 
-import { GoogleGenAI, Chat, GenerateContentResponse } from "@google/genai";
+import { GoogleGenAI, Chat, GenerateContentResponse, Type } from "@google/genai";
 import { AIResponse, TriageResponse, MCQStepResponse, IntakeStepResponse, IntakeData } from "../types";
+
+/**
+ * Formal schema for clinical triage responses.
+ * This ensures the Gemini API always returns valid JSON that matches our application's types.
+ */
+const TRIAGE_RESPONSE_SCHEMA = {
+  type: Type.OBJECT,
+  properties: {
+    symptom_summary: { 
+      type: Type.STRING, 
+      description: "A professional clinical summary of the patient's current symptoms and history." 
+    },
+    clarifying_questions_needed: { 
+      type: Type.STRING, 
+      enum: ["YES", "NO"], 
+      description: "Indicates if the model requires more information via MCQs." 
+    },
+    questions: {
+      type: Type.ARRAY,
+      description: "A set of 3-6 MCQs to gather clinical details in one go.",
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          id: { type: Type.STRING },
+          question: { type: Type.STRING },
+          options: {
+            type: Type.OBJECT,
+            properties: {
+              A: { type: Type.STRING },
+              B: { type: Type.STRING },
+              C: { type: Type.STRING },
+              D: { type: Type.STRING },
+              Z: { type: Type.STRING, description: "Must always be 'None of the above' or 'Other'." }
+            },
+            required: ["A", "B", "Z"]
+          },
+          allow_multiple: { type: Type.BOOLEAN }
+        },
+        required: ["id", "question", "options", "allow_multiple"]
+      }
+    },
+    probable_conditions: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          name: { type: Type.STRING },
+          probability: { type: Type.STRING, enum: ["Low", "Moderate", "High"] },
+          reason: { type: Type.STRING }
+        },
+        required: ["name", "probability", "reason"]
+      }
+    },
+    red_flags: { 
+      type: Type.ARRAY, 
+      items: { type: Type.STRING },
+      description: "Life-threatening indicators identified."
+    },
+    recommended_tests: { type: Type.ARRAY, items: { type: Type.STRING } },
+    recommended_department: { type: Type.STRING, description: "Specific doctor or department for consultation." },
+    self_care_advice: { type: Type.STRING },
+    ayurvedic_suggestions: { type: Type.STRING },
+    estimated_consultation_time: { type: Type.STRING },
+    internal_chatbot_trigger: { type: Type.STRING, enum: ["YES", "NO"] }
+  },
+  required: [
+    "symptom_summary", 
+    "clarifying_questions_needed", 
+    "probable_conditions", 
+    "red_flags", 
+    "recommended_department", 
+    "internal_chatbot_trigger"
+  ]
+};
 
 const GET_SYSTEM_INSTRUCTION = (language: string) => `
 You are **Eli**, the specialized **Clinical Triage Assistant** for **J.C. Juneja Hospital**.
@@ -9,7 +83,7 @@ You are **Eli**, the specialized **Clinical Triage Assistant** for **J.C. Juneja
 ### 🏥 ROLE & OBJECTIVE
 -----------------------------
 Your goal is to perform safe, evidence-based clinical triage. 
-**STRICT EFFICIENCY RULE**: Do NOT ask questions one by one or in multiple steps. If the initial intake is insufficient, you MUST gather ALL missing clinical details in a SINGLE comprehensive set of 3 to 6 Multiple Choice Questions. 
+**STRICT EFFICIENCY RULE**: Do NOT ask questions one by one. If the initial intake is insufficient, you MUST gather ALL missing clinical details in a SINGLE comprehensive set of 3 to 6 Multiple Choice Questions.
 
 -----------------------------
 ### 🌐 LANGUAGE & COMMUNICATION
@@ -24,53 +98,13 @@ User language: **${language}**.
 -----------------------------
 If you need more information to provide a definitive recommendation:
 1. Set "clarifying_questions_needed" to "YES".
-2. In the "questions" array, provide 3 to 6 Multiple Choice Questions that capture:
-   - **Severity & Nature**: Scale 1-10, type of pain/discomfort.
-   - **Onset & Timing**: Exactly when it started and if it is constant or intermittent.
-   - **Associated Symptoms**: Nausea, dizziness, weakness, etc.
-   - **Aggravating/Relieving Factors**: What makes it better or worse.
-   - **Red Flag Check**: Screening for life-threatening indicators.
-
-**MANDATORY MCQ RULE**: 
-Every single question you generate MUST have an option for **"None of the above"** or **"Other"**. This is critical for clinical safety so the patient is never forced to select an inaccurate symptom.
-
-3. After these questions are answered, you must have enough information to provide the final Triage Report.
+2. In the "questions" array, provide 3 to 6 Multiple Choice Questions.
+3. **MANDATORY MCQ RULE**: Every single question MUST have an option for **"None of the above"** or **"Other"**.
 
 -----------------------------
-### 🛑 DOCTOR ROSTER & DEPARTMENTS
+### 🛑 DOCTOR ROSTER
 -----------------------------
-- General Medicine: Dr. Vivek Srivastava
-- Surgeon: Dr. Rahul Sharma
-- Pediatrics: Dr. Shalini Mangla, Dr. Romani Bansal
-- Obs & Gynae: Dr. Roushali Kumar
-- Orthopedics: Dr. Rajesh Kumar Tayal
-- Eye: Dr. Sanjeev Sehgal | ENT: Dr. Amit Mangla
-- Super Specialists: Urology, Cardiology, Neurology, Nephrology.
-
------------------------------
-### 📦 OUTPUT FORMAT (JSON ONLY)
------------------------------
-Return ONLY valid JSON:
-{
-  "symptom_summary": "string",
-  "clarifying_questions_needed": "YES or NO",
-  "questions": [
-     {
-        "id": "CQ_ID",
-        "question": "Clear clinical question in ${language}",
-        "options": {"A": "Option 1", "B": "Option 2", "C": "Option 3", "Z": "None of the above / Other"},
-        "allow_multiple": false
-     }
-  ],
-  "probable_conditions": [{"name": "string", "probability": "Low/Mod/High", "reason": "string"}],
-  "red_flags": ["string"],
-  "recommended_tests": ["string"],
-  "recommended_department": "Name of Department or Doctor",
-  "self_care_advice": "string",
-  "ayurvedic_suggestions": "string",
-  "estimated_consultation_time": "e.g. 15-20 mins",
-  "internal_chatbot_trigger": "NO"
-}
+- Gen Med: Dr. Vivek Srivastava | Surgeon: Dr. Rahul Sharma | Ped: Dr. Shalini Mangla, Dr. Romani Bansal | Obs: Dr. Roushali Kumar | Ortho: Dr. Rajesh Kumar Tayal | Eye: Dr. Sanjeev Sehgal | ENT: Dr. Amit Mangla.
 `;
 
 let chatSession: Chat | null = null;
@@ -81,6 +115,7 @@ export const initializeChat = (language: string = 'English'): Chat => {
     model: 'gemini-3-pro-preview',
     config: {
       responseMimeType: "application/json",
+      responseSchema: TRIAGE_RESPONSE_SCHEMA,
       temperature: 0.1,
       systemInstruction: GET_SYSTEM_INSTRUCTION(language),
     },
@@ -96,10 +131,10 @@ export const sendMessageToTriage = async (message: string, language: string = 'E
   try {
     const response: GenerateContentResponse = await chatSession!.sendMessage({ message });
     const text = response.text || "";
-    const cleanedText = text.replace(/```json/g, '').replace(/```/g, '').trim();
-    return JSON.parse(cleanedText) as AIResponse;
+    // With responseSchema and application/json, the text is guaranteed to be raw JSON without markdown.
+    return JSON.parse(text) as AIResponse;
   } catch (error) {
-    console.error("Clinical Triage Error:", error);
+    console.error("Clinical Triage Error Details:", error);
     throw error;
   }
 };
