@@ -3,12 +3,13 @@ import { GoogleGenAI, Chat, GenerateContentResponse, Type } from "@google/genai"
 import { AIResponse, TriageResponse, MCQStepResponse, IntakeStepResponse, IntakeData } from "../types";
 
 /**
- * Formal schema for clinical triage responses.
- * This ensures the Gemini API always returns valid JSON that matches our application's types.
+ * Enhanced schema for clinical triage.
+ * Covers both final reports and intermediate MCQ steps.
  */
 const TRIAGE_RESPONSE_SCHEMA = {
   type: Type.OBJECT,
   properties: {
+    screen: { type: Type.STRING, description: "Optional discriminator: 'symptom_mcq' or 'triage_report'" },
     symptom_summary: { 
       type: Type.STRING, 
       description: "A professional clinical summary of the patient's current symptoms and history." 
@@ -33,6 +34,7 @@ const TRIAGE_RESPONSE_SCHEMA = {
               B: { type: Type.STRING },
               C: { type: Type.STRING },
               D: { type: Type.STRING },
+              E: { type: Type.STRING },
               Z: { type: Type.STRING, description: "Must always be 'None of the above' or 'Other'." }
             },
             required: ["A", "B", "Z"]
@@ -110,7 +112,12 @@ If you need more information to provide a definitive recommendation:
 let chatSession: Chat | null = null;
 
 export const initializeChat = (language: string = 'English'): Chat => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    console.warn("Gemini API Key is missing. Please check your .env.local and vite.config.ts bridge.");
+  }
+
+  const ai = new GoogleGenAI({ apiKey: apiKey || '' });
   chatSession = ai.chats.create({
     model: 'gemini-3-pro-preview',
     config: {
@@ -131,10 +138,14 @@ export const sendMessageToTriage = async (message: string, language: string = 'E
   try {
     const response: GenerateContentResponse = await chatSession!.sendMessage({ message });
     const text = response.text || "";
-    // With responseSchema and application/json, the text is guaranteed to be raw JSON without markdown.
+    // With responseSchema, the text is guaranteed to be raw JSON.
     return JSON.parse(text) as AIResponse;
   } catch (error) {
-    console.error("Clinical Triage Error Details:", error);
+    console.error("Eli Clinical Triage Error:", error);
+    // Log the raw error for debugging in the console
+    if (error instanceof Error) {
+        console.error("Error Message:", error.message);
+    }
     throw error;
   }
 };
@@ -144,7 +155,7 @@ export const resetSession = () => {
 };
 
 export const parsePatientVoiceInput = async (transcript: string): Promise<Partial<IntakeData>> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
   const prompt = `Extract patient medical details from this voice transcript: "${transcript}". Format as JSON.`;
 
   try {
