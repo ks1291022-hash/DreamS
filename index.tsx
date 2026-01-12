@@ -1,14 +1,13 @@
-
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { AlertTriangle } from 'lucide-react';
 
-interface Props {
+interface ErrorBoundaryProps {
   children?: ReactNode;
 }
 
-interface State {
+interface ErrorBoundaryState {
   hasError: boolean;
   error: Error | null;
 }
@@ -16,19 +15,20 @@ interface State {
 /**
  * ErrorBoundary catches errors in the component tree to prevent the whole app from crashing.
  */
-// Explicitly extending React.Component to ensure that 'state' and 'props' are correctly identified by the compiler.
-class ErrorBoundary extends React.Component<Props, State> {
+// Fix: Use the named import 'Component' directly to ensure that TypeScript's type checking for class components 
+// correctly identifies inherited properties such as 'props' and 'state'.
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   // Use a property initializer for state to help with type inference in class components.
-  public state: State = {
+  public state: ErrorBoundaryState = {
     hasError: false,
     error: null
   };
 
-  constructor(props: Props) {
+  constructor(props: ErrorBoundaryProps) {
     super(props);
   }
 
-  public static getDerivedStateFromError(error: Error): State {
+  public static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
   }
 
@@ -65,7 +65,7 @@ class ErrorBoundary extends React.Component<Props, State> {
       );
     }
 
-    // Accessing 'props' through the class instance correctly.
+    // Correctly accessing 'props' from the class instance to render children components.
     return this.props.children || null;
   }
 }

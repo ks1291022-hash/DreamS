@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { MCQQuestion } from '../types';
 import { HelpCircle, CheckCircle2, ChevronRight } from 'lucide-react';
@@ -40,21 +41,16 @@ const MCQQuestionnaire: React.FC<Props> = ({ questions, onSubmit, isLoading }) =
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-8 animate-fade-in-up">
-      <div className="text-center mb-8">
-        <h2 className="text-2xl font-bold text-slate-800">Symptom Assessment</h2>
-        <p className="text-slate-500 mt-2">Please answer the following questions to help us understand your condition.</p>
-      </div>
-
+    <div className="space-y-8 animate-fade-in-up">
       <form onSubmit={handleSubmit} className="space-y-6">
         {questions.map((q, idx) => (
           <div key={q.id} className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 transition-all hover:shadow-md">
             <h3 className="text-lg font-semibold text-slate-800 mb-4 flex gap-3">
-              <span className="bg-indigo-100 text-indigo-700 w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0">Q{idx + 1}</span>
+              <span className="bg-indigo-100 text-indigo-700 w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0 font-bold">Q{idx + 1}</span>
               {q.question}
             </h3>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pl-11">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pl-0 md:pl-11">
               {Object.entries(q.options).map(([optId, optText]) => {
                 const isSelected = answers[q.id]?.includes(optId);
                 return (
@@ -78,13 +74,13 @@ const MCQQuestionnaire: React.FC<Props> = ({ questions, onSubmit, isLoading }) =
                     <div className={`w-5 h-5 rounded border flex items-center justify-center mr-3 transition-colors ${isSelected ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300 bg-white'}`}>
                       {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
                     </div>
-                    <span className="font-medium">{optText}</span>
+                    <span className="font-medium text-sm md:text-base">{optText}</span>
                   </label>
                 );
               })}
             </div>
-            <div className="pl-11 mt-3">
-              <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">
+            <div className="pl-0 md:pl-11 mt-3">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
                 {q.allow_multiple ? 'Select all that apply' : 'Select one option'}
               </span>
             </div>
@@ -95,9 +91,9 @@ const MCQQuestionnaire: React.FC<Props> = ({ questions, onSubmit, isLoading }) =
           <button 
             type="submit" 
             disabled={!isFormComplete || isLoading}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-xl font-semibold flex items-center gap-2 transition-all shadow-lg hover:shadow-indigo-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-xl font-semibold flex items-center gap-2 transition-all shadow-lg hover:shadow-indigo-500/30 disabled:opacity-50 disabled:cursor-not-allowed w-full md:w-auto justify-center"
           >
-            {isLoading ? 'Analyzing...' : 'Submit Assessment'}
+            {isLoading ? 'Analyzing Clinical Data...' : 'Submit Responses'}
             {!isLoading && <ChevronRight className="w-5 h-5" />}
           </button>
         </div>

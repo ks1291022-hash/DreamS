@@ -11,7 +11,7 @@ import DisclaimerModal from './DisclaimerModal';
 import ClarificationRequest from './ClarificationRequest';
 import { sendMessageToTriage, resetSession } from '../services/geminiService';
 import { TriageResponse, AppState, IntakeData, AIResponse, MCQStepResponse, PatientRecord } from '../types';
-import { RefreshCw, ClipboardCheck, UserCog, MessageSquare, Save, Edit } from 'lucide-react';
+import { RefreshCw, ClipboardCheck, UserCog, MessageSquare, Save, Edit, HelpCircle } from 'lucide-react';
 
 interface Props {
   onSaveRecord: (intake: IntakeData, triage: TriageResponse) => void;
@@ -32,6 +32,7 @@ const PatientTriageView: React.FC<Props> = ({ onSaveRecord, onNavigateToDigitalT
   const [mcqData, setMcqData] = useState<MCQStepResponse | null>(null);
   const [finalReport, setFinalReport] = useState<TriageResponse | null>(null);
   const [isSaved, setIsSaved] = useState(false);
+  const [isFollowUpLoading, setIsFollowUpLoading] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -53,6 +54,7 @@ const PatientTriageView: React.FC<Props> = ({ onSaveRecord, onNavigateToDigitalT
   };
 
   const processAIResponse = (response: AIResponse) => {
+    setIsFollowUpLoading(false);
     if ('screen' in response && response.screen === 'symptom_mcq') {
       setMcqData(response as MCQStepResponse);
       setAppState(AppState.MCQ_ENTRY);
@@ -87,7 +89,7 @@ const PatientTriageView: React.FC<Props> = ({ onSaveRecord, onNavigateToDigitalT
       Medical History: ${data.conditions}
       Meds: ${data.medications} | Allergies: ${data.allergies}
       
-      Instructions: Generate relevant clinical triage questions to further differentiate the condition.
+      Instructions: Generate ALL relevant clarifying questions to fully differentiate the condition in ONE GO.
     `;
 
     try {
@@ -140,10 +142,11 @@ const PatientTriageView: React.FC<Props> = ({ onSaveRecord, onNavigateToDigitalT
   };
 
   const handleMCQSubmit = async (answers: Record<string, string[]>) => {
+    setIsFollowUpLoading(true);
     setAppState(AppState.ANALYZING_MCQ);
     
-    let answerString = "PATIENT FOLLOW-UP ANSWERS:\n";
-    const isClarificationPhase = appState === AppState.RESULTS && finalReport?.clarifying_questions_needed === 'YES';
+    let answerString = "PATIENT COMPREHENSIVE FOLLOW-UP ANSWERS:\n";
+    const isClarificationPhase = finalReport?.clarifying_questions_needed === 'YES';
     const questionsToMap = isClarificationPhase ? finalReport.questions : mcqData?.questions || [];
 
     questionsToMap.forEach(q => {
@@ -272,7 +275,10 @@ const PatientTriageView: React.FC<Props> = ({ onSaveRecord, onNavigateToDigitalT
         )}
 
         {appState === AppState.MCQ_ENTRY && mcqData && (
-          <MCQQuestionnaire questions={mcqData.questions} onSubmit={handleMCQSubmit} isLoading={false} />
+          <div className="max-w-3xl mx-auto">
+            <h3 className="text-2xl font-bold text-slate-800 mb-6 px-2">Clinical Follow-up Assessment</h3>
+            <MCQQuestionnaire questions={mcqData.questions} onSubmit={handleMCQSubmit} isLoading={false} />
+          </div>
         )}
 
         {appState === AppState.ANALYZING_MCQ && (
@@ -282,13 +288,13 @@ const PatientTriageView: React.FC<Props> = ({ onSaveRecord, onNavigateToDigitalT
                 <div className="w-4 h-4 bg-teal-600 rounded-full animate-bounce delay-150"></div>
                 <div className="w-4 h-4 bg-teal-600 rounded-full animate-bounce delay-300"></div>
              </div>
-            <h3 className="text-xl font-semibold text-slate-700">Eli is Generating Triage Report...</h3>
+            <h3 className="text-xl font-semibold text-slate-700">Finalizing Triage Recommendation...</h3>
           </div>
         )}
 
         {appState === AppState.RESULTS && finalReport && (
           <div className="space-y-8 relative">
-             {!isSaved && (
+             {!isSaved && finalReport.clarifying_questions_needed === 'NO' && (
                 <div className="absolute top-0 right-0 z-10">
                    <button 
                      onClick={handleManualSave}
@@ -303,16 +309,25 @@ const PatientTriageView: React.FC<Props> = ({ onSaveRecord, onNavigateToDigitalT
             {finalReport.clarifying_questions_needed === 'NO' ? (
               <TriageReport data={finalReport} intakeData={intakeData || undefined} />
             ) : (
-              <div className="space-y-6">
-                <ClarificationRequest questions={finalReport.questions.map(q => q.question)} />
-                <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-8">
-                  <h3 className="text-lg font-bold text-slate-800 mb-2">Additional Details Required</h3>
-                  <p className="text-sm text-slate-500 mb-4">Please answer Eli's clarifying questions above to help provide a more accurate assessment.</p>
-                  <SymptomInput 
-                    onSubmit={(text) => handleMCQSubmit({ "follow_up": [text] })} 
-                    isLoading={appState === AppState.ANALYZING_MCQ} 
-                    isFollowUp={true} 
-                  />
+              <div className="max-w-3xl mx-auto space-y-6">
+                <div className="bg-white rounded-2xl shadow-xl border border-indigo-100 overflow-hidden animate-fade-in-up">
+                  <div className="bg-indigo-600 p-6 text-white flex items-center gap-4">
+                    <div className="bg-white/20 p-2 rounded-lg">
+                      <HelpCircle className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold">Comprehensive Assessment</h3>
+                      <p className="text-indigo-100 text-sm">To provide a final hospital recommendation, please answer these critical follow-up questions.</p>
+                    </div>
+                  </div>
+                  
+                  <div className="p-8">
+                    <MCQQuestionnaire 
+                      questions={finalReport.questions} 
+                      onSubmit={handleMCQSubmit} 
+                      isLoading={isFollowUpLoading} 
+                    />
+                  </div>
                 </div>
               </div>
             )}
