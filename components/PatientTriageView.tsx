@@ -72,7 +72,7 @@ const PatientTriageView: React.FC<Props> = ({ onSaveRecord, onNavigateToDigitalT
       return;
     }
 
-    throw new Error("INCOMPLETE_ASSESSMENT: Eli requires more specific symptom details to categorize your case.");
+    throw new Error(`INCOMPLETE_ASSESSMENT: Eli requires more specific symptom details to categorize your case.`);
   };
 
   const processIntake = async (data: IntakeData) => {
@@ -242,16 +242,15 @@ const PatientTriageView: React.FC<Props> = ({ onSaveRecord, onNavigateToDigitalT
                <p className="mb-4">Google has disabled your API key because it was exposed publicly.</p>
                <ol className="list-decimal pl-5 space-y-2">
                  <li>Go to Google AI Studio and create a NEW key.</li>
-                 <li>Update the API_KEY variable in your Vercel Project Settings.</li>
-                 <li>Redeploy your application on Vercel.</li>
+                 <li>Update the API_KEY variable in your environment settings.</li>
+                 <li>Redeploy your application.</li>
                </ol>
             </div>
           ) : errorMessage?.includes('API_KEY_MISSING') && (
             <div className="mb-8 text-xs text-rose-700 bg-rose-100/50 p-4 rounded-xl text-left leading-relaxed">
                <strong>Setup Required:</strong>
                <ul className="list-disc pl-4 mt-2 space-y-1">
-                 <li>Go to Vercel Settings and Environment Variables.</li>
-                 <li>Add key API_KEY with your Gemini token.</li>
+                 <li>Ensure the 'API_KEY' environment variable is set.</li>
                  <li>Redeploy your build to apply changes.</li>
                </ul>
             </div>

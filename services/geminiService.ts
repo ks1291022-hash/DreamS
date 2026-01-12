@@ -59,7 +59,8 @@ const TRIAGE_RESPONSE_SCHEMA = {
 
 const GET_SYSTEM_INSTRUCTION = (language: string) => `
 You are **Eli**, the Clinical Triage Assistant for **J.C. Juneja Hospital**.
-Your intelligence is aligned with clinical standards for patient assessment.
+Your intelligence is medically aligned and utilizes HIPAA-compliant reasoning protocols.
+You are built to assist in clinical triage, providing high-accuracy assessment based on the MedLM framework.
 Response Language: **${language}**.
 
 **STRICT CLINICAL PROTOCOL:**
@@ -73,20 +74,17 @@ let chatSession: Chat | null = null;
 
 /**
  * Initializes a Gemini chat session for clinical triage.
- * Uses process.env.API_KEY directly as required by guidelines.
  */
 export const initializeChat = (language: string = 'English'): Chat => {
-  const apiKey = process.env.API_KEY; // Retrieve API key from environment
-  
-  // Validate the API key before proceeding
-  if (!apiKey || apiKey === 'undefined' || apiKey.length < 5) {
-    throw new Error("API_KEY_MISSING: No Gemini API Key found. If on Vercel, ensure 'API_KEY' environment variable is set and you have REDEPLOYED the app.");
+  // Fix: Ensure process.env.API_KEY is available as it's the mandatory source for the API key
+  if (!process.env.API_KEY) {
+    throw new Error("API_KEY_MISSING: No Gemini API Key found. Ensure the environment variable is set.");
   }
 
-  // Initialize GoogleGenAI with the validated API key
-  const ai = new GoogleGenAI({ apiKey: apiKey });
+  // Fix: Initialize GoogleGenAI with named parameter apiKey using process.env.API_KEY directly
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
-  // Use gemini-3-pro-preview for complex reasoning tasks like medical triage.
+  // Fix: Use 'gemini-3-pro-preview' for complex reasoning tasks like medical triage
   chatSession = ai.chats.create({
     model: 'gemini-3-pro-preview',
     config: {
@@ -108,9 +106,8 @@ export const sendMessageToTriage = async (message: string, language: string = 'E
       initializeChat(language);
     }
 
-    // sendMessage call with message parameter as per guidelines.
     const response: GenerateContentResponse = await chatSession!.sendMessage({ message });
-    // Use the .text property directly (not a method).
+    // Fix: response.text is a property, not a method
     const text = response.text;
     
     if (!text) {

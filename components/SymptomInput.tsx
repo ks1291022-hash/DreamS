@@ -27,14 +27,14 @@ const SymptomInput: React.FC<Props> = ({ onSubmit, isLoading, isFollowUp }) => {
           disabled={isLoading}
           placeholder={isFollowUp ? "Please answer Eli's questions above..." : "Describe your symptoms in detail (e.g., 'I have fever and stomach pain for 2 days')..."}
           className={`w-full bg-white border-2 rounded-xl p-4 pr-14 text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-0 transition-colors resize-none shadow-sm ${
-            isLoading ? 'bg-slate-50 border-slate-200' : 'border-slate-200 focus:border-teal-500'
+            isLoading ? 'bg-slate-50 border-slate-200' : 'border-slate-200 focus:border-indigo-500'
           } ${isFollowUp ? 'min-h-[80px]' : 'min-h-[120px]'}`}
         />
         
         <button
           type="submit"
           disabled={!input.trim() || isLoading}
-          className="absolute right-3 bottom-3 p-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 disabled:hover:bg-teal-600 transition-all shadow-md"
+          className="absolute right-3 bottom-3 p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:hover:bg-indigo-600 transition-all shadow-md"
         >
           {isLoading ? (
             <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />

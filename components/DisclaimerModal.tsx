@@ -34,7 +34,7 @@ const DisclaimerModal: React.FC<Props> = ({ onAccept }) => {
         <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end">
           <button 
             onClick={onAccept}
-            className="flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-6 py-2.5 rounded-lg font-medium transition-colors shadow-lg shadow-teal-600/20"
+            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-lg font-medium transition-colors shadow-lg shadow-indigo-600/20"
           >
             <CheckCircle className="w-4 h-4" />
             I Agree & Proceed
