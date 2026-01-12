@@ -75,16 +75,16 @@ let chatSession: Chat | null = null;
  * Initializes a Gemini chat session for clinical triage.
  */
 export const initializeChat = (language: string = 'English'): Chat => {
-  // Fix: Ensure process.env.API_KEY is accessed directly for GoogleGenAI initialization
+  // Use process.env.API_KEY as the mandatory source
   if (!process.env.API_KEY) {
     throw new Error("API_KEY_MISSING: No Gemini API Key found. Ensure the environment variable is set.");
   }
 
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
-  // Fix: Upgrade to gemini-3-pro-preview for complex reasoning tasks like medical triage and diagnostics
+  // Use 'gemini-3-flash-preview' for higher rate limits and reliability in clinical triage
   chatSession = ai.chats.create({
-    model: 'gemini-3-pro-preview',
+    model: 'gemini-3-flash-preview',
     config: {
       responseMimeType: "application/json",
       responseSchema: TRIAGE_RESPONSE_SCHEMA,
@@ -104,7 +104,7 @@ export const sendMessageToTriage = async (message: string, language: string = 'E
       initializeChat(language);
     }
 
-    // Fix: response.text is a property, ensuring we don't call it as a method
+    // response.text is a property, not a method
     const response: GenerateContentResponse = await chatSession!.sendMessage({ message });
     const text = response.text;
     

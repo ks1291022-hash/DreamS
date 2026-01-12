@@ -1,5 +1,5 @@
 
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+import React, { ErrorInfo, ReactNode } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { AlertTriangle } from 'lucide-react';
@@ -16,11 +16,11 @@ interface ErrorBoundaryState {
 /**
  * ErrorBoundary catches errors in the component tree to prevent the whole app from crashing.
  */
-// Fix: Import Component explicitly and extend it with generic types to ensure state and props are properly recognized by the TypeScript compiler
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+// Fix: Extending React.Component with explicit generic types for props and state to resolve access errors for 'this.state' and 'this.props'.
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
-    // Fix: Initialize state in constructor; inheriting from Component<P, S> ensures 'state' is a valid property of the class instance
+    // Fix: Explicit initialization of state in constructor satisfies the TypeScript compiler requirements for class components.
     this.state = {
       hasError: false,
       error: null
@@ -36,7 +36,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 
   render() {
-    // Fix: Accessing state properties safely through the inherited Component state
+    // Fix: 'this.state' is now properly recognized as having properties 'hasError' and 'error'.
     if (this.state.hasError) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
@@ -64,7 +64,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
       );
     }
 
-    // Fix: children is now correctly identified via the inherited Component props
+    // Fix: 'this.props' is now properly recognized as having property 'children'.
     return this.props.children || null;
   }
 }
