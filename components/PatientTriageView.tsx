@@ -179,7 +179,7 @@ const PatientTriageView: React.FC<Props> = ({ onSaveRecord, onNavigateToDigitalT
         <div className="flex flex-col items-center justify-center py-24 animate-pulse">
            <RefreshCw className="w-14 h-14 text-indigo-600 animate-spin mb-6" />
            <p className="text-slate-600 text-lg font-bold">Eli is analyzing clinical data...</p>
-           <p className="text-slate-400 text-sm mt-2">Checking history and triage protocols</p>
+           <p className="text-slate-400 text-sm mt-2">Checking history and MedLM triage protocols</p>
         </div>
       )}
 
@@ -236,26 +236,6 @@ const PatientTriageView: React.FC<Props> = ({ onSaveRecord, onNavigateToDigitalT
              {errorMessage}
           </div>
           
-          {isLeakedKey ? (
-            <div className="mb-8 text-sm text-rose-700 bg-rose-100/50 p-6 rounded-xl text-left leading-relaxed border border-rose-200">
-               <strong className="block mb-2 text-rose-900">Critical Action Required: API Key Blocked</strong>
-               <p className="mb-4">Google has disabled your API key because it was exposed publicly.</p>
-               <ol className="list-decimal pl-5 space-y-2">
-                 <li>Go to Google AI Studio and create a NEW key.</li>
-                 <li>Update the API_KEY variable in your environment settings.</li>
-                 <li>Redeploy your application.</li>
-               </ol>
-            </div>
-          ) : errorMessage?.includes('API_KEY_MISSING') && (
-            <div className="mb-8 text-xs text-rose-700 bg-rose-100/50 p-4 rounded-xl text-left leading-relaxed">
-               <strong>Setup Required:</strong>
-               <ul className="list-disc pl-4 mt-2 space-y-1">
-                 <li>Ensure the 'API_KEY' environment variable is set.</li>
-                 <li>Redeploy your build to apply changes.</li>
-               </ul>
-            </div>
-          )}
-
           <button 
             onClick={() => window.location.reload()}
             className="w-full bg-rose-600 text-white py-4 rounded-2xl font-bold hover:bg-rose-700 shadow-lg shadow-rose-300 transition-all text-lg"

@@ -2,8 +2,9 @@ import { GoogleGenAI, Chat, GenerateContentResponse, Type } from "@google/genai"
 import { AIResponse, TriageResponse, MCQStepResponse, IntakeStepResponse, IntakeData } from "../types";
 
 /**
- * Gemini-based clinical triage service.
- * Follows @google/genai Coding Guidelines.
+ * Clinical Triage Assistant Service.
+ * Persona: Eli
+ * Powered by Google Gemini.
  */
 
 const TRIAGE_RESPONSE_SCHEMA = {
@@ -57,33 +58,29 @@ const TRIAGE_RESPONSE_SCHEMA = {
 };
 
 const GET_SYSTEM_INSTRUCTION = (language: string) => `
-You are **Eli**, the Clinical Triage Assistant for **J.C. Juneja Hospital**.
-Your intelligence is medically aligned and utilizes HIPAA-compliant reasoning protocols.
-You are built to assist in clinical triage, providing high-accuracy assessment based on the MedLM framework.
-Response Language: **${language}**.
+You are **Eli**, the Clinical Triage Assistant at **JC Juneja Hospital**.
+Your role is to perform preliminary clinical triage with high accuracy.
 
-**STRICT CLINICAL PROTOCOL:**
-1. If the symptoms provided are vague or insufficient for a safe triage, you MUST set "clarifying_questions_needed" to "YES" and provide 3-5 high-quality MCQs.
-2. Every MCQ must have option "Z" as "None of the above / Other".
-3. If red flags are detected (chest pain, stroke signs, severe trauma), list them clearly in "red_flags" and recommend "Emergency" department.
-4. Return ONLY valid JSON. No conversational filler.
+PROTOCOL:
+1. If details are insufficient, ask clarifying questions (MCQs).
+2. Option Z is always "None of the above".
+3. Identify Red Flags for urgent/emergency scenarios.
+4. Recommend clinical departments and tests.
+5. Provide self-care and complementary Ayurvedic guidance for stable cases.
+Language: ${language}.
 `;
 
 let chatSession: Chat | null = null;
 
-/**
- * Initializes a Gemini chat session for clinical triage.
- */
 export const initializeChat = (language: string = 'English'): Chat => {
-  // Use process.env.API_KEY as the mandatory source
   if (!process.env.API_KEY) {
-    throw new Error("API_KEY_MISSING: No Gemini API Key found. Ensure the environment variable is set.");
+    throw new Error("API_KEY_MISSING: Eli requires a Gemini API Key.");
   }
 
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
-  // Use 'gemini-3-flash-preview' for higher rate limits and reliability in clinical triage
   chatSession = ai.chats.create({
+    // FIX: Updated model to `gemini-3-flash-preview` as recommended for chat-based text tasks.
     model: 'gemini-3-flash-preview',
     config: {
       responseMimeType: "application/json",
@@ -95,31 +92,15 @@ export const initializeChat = (language: string = 'English'): Chat => {
   return chatSession;
 };
 
-/**
- * Sends patient data to Gemini for triage analysis.
- */
 export const sendMessageToTriage = async (message: string, language: string = 'English'): Promise<AIResponse> => {
   try {
-    if (!chatSession) {
-      initializeChat(language);
-    }
-
-    // response.text is a property, not a method
+    if (!chatSession) initializeChat(language);
     const response: GenerateContentResponse = await chatSession!.sendMessage({ message });
     const text = response.text;
-    
-    if (!text) {
-      throw new Error("EMPTY_RESPONSE: The clinical engine returned no data.");
-    }
-
-    try {
-      return JSON.parse(text) as AIResponse;
-    } catch (e) {
-      console.error("Malformed JSON:", text);
-      throw new Error("PARSING_ERROR: Received invalid data format from clinical engine.");
-    }
+    if (!text) throw new Error("Eli received an empty response.");
+    return JSON.parse(text) as AIResponse;
   } catch (error: any) {
-    console.error("Gemini Service Error:", error);
+    console.error("Eli Service Error:", error);
     throw error;
   }
 };

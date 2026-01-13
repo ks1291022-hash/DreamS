@@ -25,7 +25,7 @@ const SymptomInput: React.FC<Props> = ({ onSubmit, isLoading, isFollowUp }) => {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           disabled={isLoading}
-          placeholder={isFollowUp ? "Please answer Eli's questions above..." : "Describe your symptoms in detail (e.g., 'I have fever and stomach pain for 2 days')..."}
+          placeholder={isFollowUp ? "Please answer Eli's questions above..." : "Describe your symptoms in detail for Eli (e.g., 'I have fever and stomach pain for 2 days')..."}
           className={`w-full bg-white border-2 rounded-xl p-4 pr-14 text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-0 transition-colors resize-none shadow-sm ${
             isLoading ? 'bg-slate-50 border-slate-200' : 'border-slate-200 focus:border-indigo-500'
           } ${isFollowUp ? 'min-h-[80px]' : 'min-h-[120px]'}`}

@@ -1,6 +1,6 @@
 {
-  "name": "Copy of Copy of J.C. Juneja Hospital",
-  "description": "Patient Services for J.C. Juneja Hospital (Charitable Hospital of Mankind).",
+  "name": "Eli - Clinical Triage Assistant",
+  "description": "An AI-powered clinical triage assistant for patient symptom assessment at JC Juneja Hospital, powered by Google Gemini.",
   "requestFramePermissions": [
     "microphone"
   ]

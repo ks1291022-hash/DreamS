@@ -13,19 +13,12 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-/**
- * ErrorBoundary catches errors in the component tree to prevent the whole app from crashing.
- */
-// Fix: Extending React.Component with explicit generic types for props and state to resolve access errors for 'this.state' and 'this.props'.
+// Fixed ErrorBoundary to explicitly handle Props and State types by extending React.Component
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    // Fix: Explicit initialization of state in constructor satisfies the TypeScript compiler requirements for class components.
-    this.state = {
-      hasError: false,
-      error: null
-    };
-  }
+  // FIX: Replaced the constructor with a class property for state initialization.
+  // This is a more modern syntax and resolves TypeScript errors where `this.state`
+  // was not being recognized on the component instance.
+  state: ErrorBoundaryState = { hasError: false, error: null };
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
@@ -36,7 +29,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 
   render() {
-    // Fix: 'this.state' is now properly recognized as having properties 'hasError' and 'error'.
+    // Correctly accessing state via this.state
     if (this.state.hasError) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
@@ -45,13 +38,9 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
               <AlertTriangle className="w-8 h-8 text-red-600" />
             </div>
             <h1 className="text-xl font-bold text-slate-800 mb-2">Something went wrong</h1>
-            <p className="text-slate-500 mb-6 text-sm">
-              The application encountered an error while loading.
-            </p>
+            <p className="text-slate-500 mb-6 text-sm">The application encountered an error while loading.</p>
             <div className="bg-slate-100 p-4 rounded-lg text-left overflow-auto max-h-40 mb-6">
-              <code className="text-xs text-red-600 font-mono break-all">
-                {this.state.error?.message || "Unknown Error"}
-              </code>
+              <code className="text-xs text-red-600 font-mono break-all">{this.state.error?.message || "Unknown Error"}</code>
             </div>
             <button 
               onClick={() => window.location.reload()}
@@ -63,9 +52,8 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
         </div>
       );
     }
-
-    // Fix: 'this.props' is now properly recognized as having property 'children'.
-    return this.props.children || null;
+    // Correctly accessing props via this.props
+    return this.props.children;
   }
 }
 

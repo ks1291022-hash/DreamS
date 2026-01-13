@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React from 'react';
 import { ViewMode } from '../types';
 import { Stethoscope, UserCog, LayoutDashboard, Contact2, Phone, Building2 } from 'lucide-react';
 
@@ -45,16 +44,12 @@ const SideNav: React.FC<Props> = ({ currentView, onNavigate }) => {
         })}
       </div>
 
-      {/* Reception Contact Footer (Desktop Only) */}
       <div className="hidden md:block mt-auto pt-4 border-t border-slate-100">
          <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Reception / Queries</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Hospital Help Desk</p>
             <div className="space-y-2">
                <a href="tel:+919805687028" className="flex items-center gap-2 text-xs font-semibold text-slate-600 hover:text-indigo-600 transition-colors">
                   <Phone className="w-3.5 h-3.5 text-indigo-500" /> +91 9805687028
-               </a>
-               <a href="tel:+919805682028" className="flex items-center gap-2 text-xs font-semibold text-slate-600 hover:text-indigo-600 transition-colors">
-                  <Phone className="w-3.5 h-3.5 text-indigo-500" /> +91 9805682028
                </a>
             </div>
          </div>

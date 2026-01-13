@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import Header from './components/Header';
 import SideNav from './components/SideNav';
@@ -40,7 +39,7 @@ const App: React.FC = () => {
     const isUrgent = triage.probable_conditions.some(c => c.probability === 'High') && !isCritical;
     
     const newRecord: PatientRecord = {
-      id: `JCJH-${Math.floor(Math.random() * 100000)}`,
+      id: `AAI-${Math.floor(Math.random() * 100000)}`,
       timestamp: Date.now(),
       status: isCritical ? 'Critical' : isUrgent ? 'Urgent' : 'Stable',
       intake,
@@ -98,7 +97,6 @@ const App: React.FC = () => {
             </button>
           )}
           
-          {/* State preservation: hide triage view instead of unmounting */}
           <div style={{ display: currentView === ViewMode.PATIENT_TRIAGE ? 'block' : 'none' }}>
             <div className="max-w-4xl mx-auto">
                <PatientTriageView 
