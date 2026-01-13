@@ -1,4 +1,3 @@
-
 import React, { ErrorInfo, ReactNode } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
@@ -15,13 +14,11 @@ interface ErrorBoundaryState {
 
 // Fixed ErrorBoundary to explicitly handle Props and State types by extending React.Component
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // FIX: Reverted to a constructor for state initialization. The class property
-  // syntax might not be correctly configured in the build pipeline, causing
-  // issues with `this` context and properties like `props` and `state`.
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
+  // FIX: Using class property for state initialization. This is a more modern
+  // syntax that avoids potential issues with the `this` context that can
+  // sometimes arise with constructors in certain build configurations, and resolves
+  // the type errors related to 'state' and 'props' not being found.
+  state: ErrorBoundaryState = { hasError: false, error: null };
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };

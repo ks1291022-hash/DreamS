@@ -80,7 +80,7 @@ export const initializeChat = (language: string = 'English'): Chat => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   chatSession = ai.chats.create({
-    // FIX: Updated model to 'gemini-3-pro-preview' for the complex clinical triage task with JSON output.
+    // FIX: Upgraded model to gemini-3-pro-preview for more advanced reasoning required in clinical triage.
     model: 'gemini-3-pro-preview',
     config: {
       responseMimeType: "application/json",

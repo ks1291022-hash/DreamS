@@ -97,7 +97,7 @@ const App: React.FC = () => {
             </button>
           )}
           
-          <div style={{ display: currentView === ViewMode.PATIENT_TRIAGE ? 'block' : 'none' }}>
+          {currentView === ViewMode.PATIENT_TRIAGE && (
             <div className="max-w-4xl mx-auto">
                <PatientTriageView 
                  onSaveRecord={handleSaveRecord} 
@@ -106,7 +106,7 @@ const App: React.FC = () => {
                  onLogin={handleLogin}
                />
             </div>
-          </div>
+          )}
 
           {currentView === ViewMode.DIGITAL_TWIN && (
             <div className="max-w-5xl mx-auto h-full animate-fade-in">
