@@ -80,8 +80,8 @@ export const initializeChat = (language: string = 'English'): Chat => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   chatSession = ai.chats.create({
-    // FIX: Updated model to `gemini-3-flash-preview` as recommended for chat-based text tasks.
-    model: 'gemini-3-flash-preview',
+    // FIX: Updated model to 'gemini-3-pro-preview' for the complex clinical triage task with JSON output.
+    model: 'gemini-3-pro-preview',
     config: {
       responseMimeType: "application/json",
       responseSchema: TRIAGE_RESPONSE_SCHEMA,
